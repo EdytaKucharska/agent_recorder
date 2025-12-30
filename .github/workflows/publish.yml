@@ -1,0 +1,73 @@
+name: Publish to npm
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+jobs:
+  publish:
+    name: Publish to npm
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build distribution
+        run: pnpm build:dist
+
+      - name: Derive version from tag
+        id: version
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Publishing version: $VERSION"
+
+      - name: Set package version
+        working-directory: packages/dist
+        run: npm version "${{ steps.version.outputs.version }}" --no-git-tag-version
+
+      - name: Verify package before publish
+        working-directory: packages/dist
+        run: |
+          PACKAGE_NAME=$(node -p "require('./package.json').name")
+          PACKAGE_VERSION=$(node -p "require('./package.json').version")
+          EXPECTED_NAME="agent-recorder"
+          EXPECTED_VERSION="${{ steps.version.outputs.version }}"
+
+          echo "Package name: $PACKAGE_NAME (expected: $EXPECTED_NAME)"
+          echo "Package version: $PACKAGE_VERSION (expected: $EXPECTED_VERSION)"
+
+          if [ "$PACKAGE_NAME" != "$EXPECTED_NAME" ]; then
+            echo "ERROR: Package name mismatch!"
+            exit 1
+          fi
+
+          if [ "$PACKAGE_VERSION" != "$EXPECTED_VERSION" ]; then
+            echo "ERROR: Package version mismatch!"
+            exit 1
+          fi
+
+          echo "Verification passed!"
+
+      - name: Publish to npm
+        working-directory: packages/dist
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
