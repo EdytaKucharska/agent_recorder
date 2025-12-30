@@ -110,7 +110,7 @@ export async function createMcpProxy(
   options: McpProxyOptions
 ): Promise<CreateMcpProxyResult> {
   const { db, config, sessionId, timeoutMs = DEFAULT_TIMEOUT_MS } = options;
-  const { downstreamMcpUrl, redactKeys, mcpProxyPort } = config;
+  const { downstreamMcpUrl, redactKeys, mcpProxyPort, debugProxy } = config;
 
   const app = Fastify({ logger: false });
 
@@ -198,6 +198,7 @@ export async function createMcpProxy(
             startedAt,
             endedAt,
             redactKeys,
+            debugProxy,
           });
         }
 
@@ -262,6 +263,7 @@ export async function createMcpProxy(
         startedAt,
         endedAt,
         redactKeys,
+        debugProxy,
       });
     }
 

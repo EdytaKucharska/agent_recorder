@@ -18,6 +18,14 @@ export type EventStatus =
   | "timeout"
   | "cancelled";
 
+/** Error category for failed events (stable enum-like values) */
+export type ErrorCategory =
+  | "downstream_timeout"
+  | "downstream_unreachable"
+  | "jsonrpc_invalid"
+  | "jsonrpc_error"
+  | "unknown";
+
 /**
  * Base event shared by all event types.
  * Matches the SQLite schema with denormalized fields for efficient querying.
@@ -67,6 +75,9 @@ export interface BaseEvent {
 
   /** Redacted+truncated output JSON blob */
   outputJson: string | null;
+
+  /** Error category for failed events (null if success/running) */
+  errorCategory: ErrorCategory | null;
 
   /** When this record was created (ISO 8601) */
   createdAt: string;

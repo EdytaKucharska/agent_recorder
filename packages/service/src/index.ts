@@ -11,6 +11,10 @@ import {
   openDatabase,
   runMigrations,
   getDefaultMigrationsDir,
+  getDaemonPaths,
+  writePidFile,
+  removePidFile,
+  releaseLock,
   type SessionStatus,
 } from "@agent-recorder/core";
 import { createServer, startServer } from "./server.js";
@@ -23,16 +27,50 @@ export { createSessionManager } from "./session-manager.js";
 
 export interface DaemonHandle {
   shutdown: (status?: SessionStatus) => Promise<void>;
+  sessionId: string;
+  startedAt: string;
+}
+
+export interface DaemonOptions {
+  /** Run in daemon mode (writes PID file, different shutdown behavior) */
+  daemon?: boolean;
+}
+
+// Track daemon state for health endpoint
+let daemonMode = false;
+let daemonSessionId: string | null = null;
+let daemonStartedAt: string | null = null;
+
+/**
+ * Get daemon runtime info for health endpoint.
+ */
+export function getDaemonInfo(): {
+  mode: "daemon" | "foreground";
+  sessionId: string | null;
+  startedAt: string | null;
+} {
+  return {
+    mode: daemonMode ? "daemon" : "foreground",
+    sessionId: daemonSessionId,
+    startedAt: daemonStartedAt,
+  };
 }
 
 /**
  * Start the daemon with default configuration.
  * Used by CLI and for direct execution.
+ *
+ * @param options - Daemon options (daemon mode, etc.)
  */
-export async function startDaemon(): Promise<DaemonHandle> {
+export async function startDaemon(
+  options: DaemonOptions = {}
+): Promise<DaemonHandle> {
   const config = loadConfig();
+  const paths = getDaemonPaths();
+  daemonMode = options.daemon ?? false;
 
   console.log("Starting Agent Recorder daemon...");
+  console.log(`Mode: ${daemonMode ? "daemon" : "foreground"}`);
   console.log(`Database: ${config.dbPath}`);
   console.log(`REST API port: ${config.listenPort}`);
 
@@ -45,9 +83,17 @@ export async function startDaemon(): Promise<DaemonHandle> {
 
   // Create session manager (core generates ID)
   const sessionManager = createSessionManager(db);
+  const startedAt = new Date().toISOString();
 
-  // Create and start REST API server
-  const app = await createServer({ db });
+  // Store for health endpoint
+  daemonSessionId = sessionManager.sessionId;
+  daemonStartedAt = startedAt;
+
+  // Create and start REST API server (pass currentSessionId for /api/sessions/current)
+  const app = await createServer({
+    db,
+    currentSessionId: sessionManager.sessionId,
+  });
   await startServer(app, config.listenPort);
 
   // Always start MCP proxy (handles missing downstream with 503)
@@ -65,28 +111,70 @@ export async function startDaemon(): Promise<DaemonHandle> {
   });
   await proxy.start();
 
+  // Write PID file only in daemon mode
+  if (daemonMode) {
+    writePidFile(process.pid);
+    console.log(`PID file: ${paths.pidFile}`);
+  }
+
+  console.log("Agent Recorder daemon started.");
+
+  // Track if we're already shutting down to prevent double shutdown
+  let isShuttingDown = false;
+
   // Graceful shutdown function
   const shutdown = async (status: SessionStatus = "cancelled") => {
-    console.log("\nShutting down...");
+    if (isShuttingDown) {
+      return;
+    }
+    isShuttingDown = true;
+
+    console.log(`\nShutting down (status: ${status})...`);
     sessionManager.shutdown(status);
     await proxy.close();
     await app.close();
     db.close();
+
+    // Clean up PID file and lock in daemon mode
+    if (daemonMode) {
+      removePidFile();
+      releaseLock(paths.lockFile);
+    }
+
+    console.log("Shutdown complete.");
   };
 
-  // Signal handlers use "cancelled" status
-  process.on("SIGINT", () => shutdown("cancelled").then(() => process.exit(0)));
+  // Signal handlers:
+  // SIGINT (Ctrl+C) → completed (user intentionally stopped)
+  // SIGTERM → cancelled (external termination)
+  process.on("SIGINT", () => shutdown("completed").then(() => process.exit(0)));
   process.on("SIGTERM", () =>
     shutdown("cancelled").then(() => process.exit(0))
   );
 
-  return { shutdown };
+  // Ignore SIGHUP (no reload needed)
+  process.on("SIGHUP", () => {
+    console.log("Received SIGHUP, ignoring.");
+  });
+
+  return {
+    shutdown,
+    sessionId: sessionManager.sessionId,
+    startedAt,
+  };
 }
 
 // Run if executed directly
-const isMainModule = import.meta.url === `file://${process.argv[1]}`;
+// Note: pathToFileURL handles spaces and special characters correctly
+import { pathToFileURL } from "node:url";
+const isMainModule =
+  process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
 if (isMainModule) {
-  startDaemon().catch((error) => {
+  // Parse command line arguments
+  const args = process.argv.slice(2);
+  const isDaemon = args.includes("--daemon");
+
+  startDaemon({ daemon: isDaemon }).catch((error) => {
     console.error("Failed to start daemon:", error);
     process.exit(1);
   });

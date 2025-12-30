@@ -39,6 +39,46 @@ Agent Recorder makes Claude Code execution **explicit and inspectable**.
 
 ---
 
+## Quick Start
+
+```bash
+# Install dependencies and build
+pnpm install && pnpm bootstrap
+
+# Set up data directory (~/.agent-recorder/)
+pnpm ar install
+
+# Start the daemon
+pnpm ar start --env-file ~/.agent-recorder/.env
+```
+
+Add to `~/.claude/settings.json` (Claude Code v2):
+
+```json
+{
+  "mcpServers": {
+    "agent-recorder": {
+      "url": "http://127.0.0.1:8788/"
+    }
+  }
+}
+```
+
+Restart Claude Code, then monitor your session:
+
+```bash
+pnpm ar sessions current         # Get active session ID
+pnpm ar sessions view <id>       # View events with header summary
+pnpm ar sessions stats <id>      # Show statistics
+pnpm ar sessions grep <id> --status error  # Filter errors
+pnpm ar sessions summarize <id>  # Safe metadata-only summary
+pnpm ar export <id>              # Export to JSONL
+```
+
+See `docs/bootstrap.md` for full documentation.
+
+---
+
 ## What it does (v1)
 
 - Runs locally as a **transparent MCP proxy**

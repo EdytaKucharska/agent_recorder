@@ -15,13 +15,32 @@ import { randomUUID } from "node:crypto";
 
 interface SessionsRoutesOptions {
   db: Database.Database;
+  currentSessionId: string | null;
 }
 
 export async function registerSessionsRoutes(
   app: FastifyInstance,
   options: SessionsRoutesOptions
 ): Promise<void> {
-  const { db } = options;
+  const { db, currentSessionId } = options;
+
+  // Get current active session (daemon's session)
+  app.get("/api/sessions/current", async (request, reply) => {
+    if (!currentSessionId) {
+      return reply.code(404).send({ error: "No active session" });
+    }
+
+    const session = getSessionById(db, currentSessionId);
+    if (!session) {
+      return reply.code(404).send({ error: "Session not found" });
+    }
+
+    return {
+      id: session.id,
+      status: session.status,
+      startedAt: session.startedAt,
+    };
+  });
 
   // Create a new session
   app.post("/api/sessions", async (request, reply) => {

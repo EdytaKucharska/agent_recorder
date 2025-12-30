@@ -13,6 +13,10 @@
   "scripts": {
     "build": "pnpm -r run build",
     "build:core": "pnpm --filter @agent-recorder/core run build",
+    "build:dist": "pnpm -r build && pnpm --filter agent-recorder run build:dist",
+    "pack:dist": "pnpm --filter agent-recorder pack",
+    "smoke:dist": "node scripts/smoke-pack.mjs",
+    "bootstrap": "pnpm -w build",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint .",

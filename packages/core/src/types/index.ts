@@ -1,6 +1,7 @@
 export type {
   EventType,
   EventStatus,
+  ErrorCategory,
   BaseEvent,
   AgentCallEvent,
   SubagentCallEvent,

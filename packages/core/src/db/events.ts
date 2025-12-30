@@ -4,7 +4,12 @@
  */
 
 import type Database from "better-sqlite3";
-import type { BaseEvent, EventStatus, EventType } from "../types/index.js";
+import type {
+  BaseEvent,
+  ErrorCategory,
+  EventStatus,
+  EventType,
+} from "../types/index.js";
 
 /** Row shape from SQLite */
 interface EventRow {
@@ -23,6 +28,7 @@ interface EventRow {
   status: string;
   input_json: string | null;
   output_json: string | null;
+  error_category: string | null;
   created_at: string;
 }
 
@@ -44,6 +50,7 @@ function rowToEvent(row: EventRow): BaseEvent {
     status: row.status as EventStatus,
     inputJson: row.input_json,
     outputJson: row.output_json,
+    errorCategory: row.error_category as ErrorCategory | null,
     createdAt: row.created_at,
   };
 }
@@ -65,6 +72,7 @@ export interface InsertEventInput {
   status: EventStatus;
   inputJson?: string | null;
   outputJson?: string | null;
+  errorCategory?: ErrorCategory | null;
 }
 
 /** Insert a new event */
@@ -76,8 +84,8 @@ export function insertEvent(
     INSERT INTO events (
       id, session_id, parent_event_id, sequence, event_type,
       agent_role, agent_name, skill_name, tool_name, mcp_method,
-      started_at, ended_at, status, input_json, output_json, created_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+      started_at, ended_at, status, input_json, output_json, error_category, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
   `);
 
   stmt.run(
@@ -95,7 +103,8 @@ export function insertEvent(
     event.endedAt ?? null,
     event.status,
     event.inputJson ?? null,
-    event.outputJson ?? null
+    event.outputJson ?? null,
+    event.errorCategory ?? null
   );
 
   return getEventById(db, event.id)!;
@@ -120,6 +129,29 @@ export function getEventsBySession(
     "SELECT * FROM events WHERE session_id = ? ORDER BY sequence ASC"
   );
   return (stmt.all(sessionId) as EventRow[]).map(rowToEvent);
+}
+
+/** Query options for getEventsBySessionPaginated */
+export interface EventQueryOptions {
+  /** Only return events with sequence > after (default: 0) */
+  after?: number;
+  /** Maximum number of events to return (default: 200) */
+  limit?: number;
+}
+
+/** Get events for a session with pagination, ordered by sequence ASC */
+export function getEventsBySessionPaginated(
+  db: Database.Database,
+  sessionId: string,
+  options: EventQueryOptions = {}
+): BaseEvent[] {
+  const after = options.after ?? 0;
+  const limit = options.limit ?? 200;
+
+  const stmt = db.prepare(
+    "SELECT * FROM events WHERE session_id = ? AND sequence > ? ORDER BY sequence ASC LIMIT ?"
+  );
+  return (stmt.all(sessionId, after, limit) as EventRow[]).map(rowToEvent);
 }
 
 /** Count events for a session (efficient SQL count) */
@@ -152,4 +184,72 @@ export function updateEventStatus(
   }
 
   return getEventById(db, id);
+}
+
+/** Filter options for event queries */
+export interface EventFilterOptions {
+  /** Filter by tool name */
+  toolName?: string;
+  /** Filter by status */
+  status?: EventStatus;
+  /** Filter by error category */
+  errorCategory?: ErrorCategory;
+  /** Only events with sequence > sinceSeq */
+  sinceSeq?: number;
+  /** Maximum number of events to return */
+  limit?: number;
+}
+
+/** Get events for a session with filters (for CLI grep/search) */
+export function getEventsBySessionFiltered(
+  db: Database.Database,
+  sessionId: string,
+  options: EventFilterOptions = {}
+): BaseEvent[] {
+  const conditions: string[] = ["session_id = ?"];
+  const params: unknown[] = [sessionId];
+
+  if (options.toolName) {
+    conditions.push("tool_name = ?");
+    params.push(options.toolName);
+  }
+  if (options.status) {
+    conditions.push("status = ?");
+    params.push(options.status);
+  }
+  if (options.errorCategory) {
+    conditions.push("error_category = ?");
+    params.push(options.errorCategory);
+  }
+  if (options.sinceSeq !== undefined) {
+    conditions.push("sequence > ?");
+    params.push(options.sinceSeq);
+  }
+
+  let sql = `SELECT * FROM events WHERE ${conditions.join(" AND ")} ORDER BY sequence ASC`;
+  if (options.limit) {
+    sql += " LIMIT ?";
+    params.push(options.limit);
+  }
+
+  const stmt = db.prepare(sql);
+  return (stmt.all(...params) as EventRow[]).map(rowToEvent);
+}
+
+/**
+ * Get the most recent tool_call event for a session.
+ * Used by doctor command to show recording health.
+ */
+export function getLatestToolCallEvent(
+  db: Database.Database,
+  sessionId: string
+): BaseEvent | null {
+  const stmt = db.prepare(`
+    SELECT * FROM events
+    WHERE session_id = ? AND event_type = 'tool_call'
+    ORDER BY sequence DESC
+    LIMIT 1
+  `);
+  const row = stmt.get(sessionId) as EventRow | undefined;
+  return row ? rowToEvent(row) : null;
 }

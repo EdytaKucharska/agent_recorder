@@ -11,6 +11,7 @@ import { registerEventsRoutes } from "./routes/events.js";
 
 export interface CreateServerOptions {
   db: Database.Database;
+  currentSessionId?: string | null;
 }
 
 /**
@@ -19,7 +20,7 @@ export interface CreateServerOptions {
 export async function createServer(
   options: CreateServerOptions
 ): Promise<FastifyInstance> {
-  const { db } = options;
+  const { db, currentSessionId } = options;
 
   const app = Fastify({
     logger: true,
@@ -27,7 +28,10 @@ export async function createServer(
 
   // Register routes
   await registerHealthRoutes(app);
-  await registerSessionsRoutes(app, { db });
+  await registerSessionsRoutes(app, {
+    db,
+    currentSessionId: currentSessionId ?? null,
+  });
   await registerEventsRoutes(app, { db });
 
   return app;

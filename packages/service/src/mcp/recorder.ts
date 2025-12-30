@@ -8,6 +8,7 @@ import type Database from "better-sqlite3";
 import { randomUUID } from "node:crypto";
 import {
   allocateSequence,
+  deriveErrorCategory,
   insertEvent,
   redactAndTruncate,
   type EventStatus,
@@ -25,6 +26,8 @@ export interface RecordToolCallOptions {
   startedAt: string;
   endedAt: string;
   redactKeys: string[];
+  /** Enable debug logging (metadata only, no payloads) */
+  debugProxy?: boolean;
 }
 
 /**
@@ -47,6 +50,7 @@ export function recordToolCall(options: RecordToolCallOptions): string | null {
     startedAt,
     endedAt,
     redactKeys,
+    debugProxy,
   } = options;
 
   try {
@@ -56,6 +60,9 @@ export function recordToolCall(options: RecordToolCallOptions): string | null {
     // Redact and truncate input/output
     const inputJson = redactAndTruncate(input, redactKeys);
     const outputJson = redactAndTruncate(output, redactKeys);
+
+    // Derive error category from status and redacted output (no content logging)
+    const errorCategory = deriveErrorCategory(status, outputJson);
 
     // Generate event ID
     const eventId = randomUUID();
@@ -80,7 +87,17 @@ export function recordToolCall(options: RecordToolCallOptions): string | null {
       status,
       inputJson,
       outputJson,
+      errorCategory,
     });
+
+    // Debug logging: metadata only, no payloads
+    if (debugProxy) {
+      const durationMs =
+        new Date(endedAt).getTime() - new Date(startedAt).getTime();
+      console.log(
+        `[DEBUG] tool_call: session=${sessionId} seq=${sequence} tool=${toolName} status=${status} duration=${durationMs}ms`
+      );
+    }
 
     return eventId;
   } catch (error) {
