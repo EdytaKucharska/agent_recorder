@@ -1,0 +1,11 @@
+/**
+ * @agent-recorder/core
+ *
+ * Core types, utilities, and SQLite integration for Agent Recorder.
+ * Local-first flight recorder for Claude Code.
+ */
+
+export * from "./types/index.js";
+export * from "./db/index.js";
+export * from "./utils/index.js";
+export { loadConfig, type Config } from "./config.js";

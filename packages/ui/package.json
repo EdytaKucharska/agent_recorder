@@ -1,0 +1,14 @@
+{
+  "name": "@agent-recorder/ui",
+  "version": "0.0.1",
+  "description": "Web UI for Agent Recorder",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@agent-recorder/core": "workspace:*"
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "name": "@agent-recorder/cli",
+  "version": "0.0.1",
+  "description": "CLI for Agent Recorder",
+  "type": "module",
+  "bin": {
+    "agent-recorder": "./dist/index.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@agent-recorder/core": "workspace:*",
+    "@agent-recorder/service": "workspace:*",
+    "commander": "^13.0.0"
+  }
+}
