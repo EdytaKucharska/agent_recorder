@@ -224,6 +224,13 @@ export async function createMcpProxy(
       request.headers as Record<string, string | string[] | undefined>
     );
 
+    // Log routing decision if debug enabled
+    if (debugProxy) {
+      console.log(
+        `[PROXY] Routing ${body.method} to ${finalDownstreamUrl} (upstream: ${upstreamKeyStr ?? "legacy"})`
+      );
+    }
+
     // Create abort controller for timeout
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
@@ -273,8 +280,16 @@ export async function createMcpProxy(
         });
       }
 
-      // Log without potentially sensitive data
-      console.error("Failed to forward request to downstream");
+      // Log error with details for debugging
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error";
+      const errorName = error instanceof Error ? error.name : "Error";
+      console.error(
+        `Failed to forward request to downstream: ${errorName}: ${errorMessage}`
+      );
+      console.error(`  Target URL: ${finalDownstreamUrl}`);
+      console.error(`  Upstream key: ${upstreamKeyStr ?? "(legacy mode)"}`);
+
       return reply.code(502).send({
         jsonrpc: "2.0",
         error: {
