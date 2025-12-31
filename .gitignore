@@ -7,7 +7,7 @@ yarn-error.log*
 pnpm-debug.log*
 
 # Build output
-dist/
+/dist/
 build/
 out/
 coverage/
@@ -15,7 +15,7 @@ coverage/
 
 # Vite / React
 apps/**/dist/
-packages/**/dist/
+packages/*/dist/
 packages/**/build/
 .vite/
 vite.config.ts.timestamp-*
