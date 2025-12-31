@@ -7,6 +7,7 @@
 import Fastify, { type FastifyInstance } from "fastify";
 import type Database from "better-sqlite3";
 import type { Config } from "@agent-recorder/core";
+import { readFileSync } from "node:fs";
 import {
   type JsonRpcRequest,
   type JsonRpcResponse,
@@ -17,6 +18,28 @@ import { recordToolCall } from "./recorder.js";
 
 /** Default request timeout in milliseconds */
 const DEFAULT_TIMEOUT_MS = 60_000;
+
+/** Upstreams registry shape */
+interface UpstreamsRegistry {
+  [serverKey: string]: {
+    url: string;
+  };
+}
+
+/**
+ * Load upstreams registry from file.
+ * Returns empty object if file doesn't exist or is invalid.
+ */
+function loadUpstreamsRegistry(upstreamsPath: string): UpstreamsRegistry {
+  try {
+    const content = readFileSync(upstreamsPath, "utf-8");
+    const registry = JSON.parse(content) as UpstreamsRegistry;
+    return registry ?? {};
+  } catch {
+    // File doesn't exist or invalid JSON - return empty registry
+    return {};
+  }
+}
 
 /** Hop-by-hop headers that should not be forwarded */
 const HOP_BY_HOP_HEADERS = new Set([
@@ -110,7 +133,13 @@ export async function createMcpProxy(
   options: McpProxyOptions
 ): Promise<CreateMcpProxyResult> {
   const { db, config, sessionId, timeoutMs = DEFAULT_TIMEOUT_MS } = options;
-  const { downstreamMcpUrl, redactKeys, mcpProxyPort, debugProxy } = config;
+  const {
+    downstreamMcpUrl,
+    upstreamsPath,
+    redactKeys,
+    mcpProxyPort,
+    debugProxy,
+  } = config;
 
   const app = Fastify({ logger: false });
 
@@ -121,8 +150,38 @@ export async function createMcpProxy(
 
   // MCP POST handler
   app.post("/", async (request, reply) => {
-    // Validate downstream URL is configured
-    if (!downstreamMcpUrl) {
+    // Parse upstream key from query param
+    const upstreamKey =
+      typeof request.query === "object" && request.query !== null
+        ? (request.query as Record<string, unknown>).upstream
+        : null;
+    const upstreamKeyStr = typeof upstreamKey === "string" ? upstreamKey : null;
+
+    // Determine downstream URL based on router mode logic
+    let finalDownstreamUrl: string | null = null;
+
+    if (upstreamKeyStr) {
+      // Router mode: lookup upstream in registry
+      const registry = loadUpstreamsRegistry(upstreamsPath);
+      const upstream = registry[upstreamKeyStr];
+
+      if (!upstream) {
+        return reply.code(404).send({
+          jsonrpc: "2.0",
+          error: {
+            code: -32000,
+            message: `Unknown upstream: ${upstreamKeyStr}`,
+          },
+          id: null,
+        });
+      }
+
+      finalDownstreamUrl = upstream.url;
+    } else if (downstreamMcpUrl) {
+      // Legacy mode: use configured downstream URL
+      finalDownstreamUrl = downstreamMcpUrl;
+    } else {
+      // No downstream configured
       return reply.code(503).send({
         jsonrpc: "2.0",
         error: {
@@ -172,7 +231,7 @@ export async function createMcpProxy(
     // Forward request to downstream
     let downstreamResponse: Response;
     try {
-      downstreamResponse = await fetch(downstreamMcpUrl, {
+      downstreamResponse = await fetch(finalDownstreamUrl, {
         method: "POST",
         headers: forwardHeaders,
         body: JSON.stringify(body),
@@ -192,6 +251,7 @@ export async function createMcpProxy(
             sessionId,
             toolName,
             mcpMethod: "tools/call",
+            upstreamKey: upstreamKeyStr,
             input: toolInput,
             output: { error: "Request timeout" },
             status: "timeout",
@@ -257,6 +317,7 @@ export async function createMcpProxy(
         sessionId,
         toolName,
         mcpMethod: "tools/call",
+        upstreamKey: upstreamKeyStr,
         input: toolInput,
         output,
         status,

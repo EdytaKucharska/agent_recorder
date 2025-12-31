@@ -1,6 +1,6 @@
 # Getting Started with Agent Recorder
 
-## Quick Start
+## Quick Start (Development)
 
 1. Install dependencies and build:
 
@@ -39,6 +39,26 @@
    ```
 
 5. Restart Claude Code to apply changes.
+
+## Quick Start (npm package - Router Mode)
+
+1. Install from npm:
+
+   ```bash
+   npm install -g agent-recorder
+   ```
+
+2. Set up and wrap existing MCP servers:
+
+   ```bash
+   agent-recorder install
+   agent-recorder configure wrap --all
+   agent-recorder start --daemon
+   ```
+
+3. Restart Claude Code.
+
+Agent Recorder will now automatically record all tool calls from your URL-based MCP servers (e.g., Amplitude, Make, etc.).
 
 ## CLI Commands
 
@@ -143,6 +163,39 @@ Safely configures Claude Code to use Agent Recorder:
 - Creates backup before making changes
 - Adds/updates `mcpServers.agent-recorder.url`
 - Preserves all other config entries
+
+### Wrap MCP Servers (Router Mode)
+
+```bash
+agent-recorder configure wrap --all          # Wrap all URL-based MCP servers
+agent-recorder configure wrap --only foo,bar # Wrap only specific servers
+agent-recorder configure wrap --dry-run      # Preview changes
+agent-recorder configure wrap --undo         # Restore from backup
+```
+
+Automatically wraps existing Claude Code MCP servers with Agent Recorder proxy:
+
+- Reads Claude Code config (`~/.claude/settings.json` or `~/.config/claude/mcp.json`)
+- For each URL-based MCP server:
+  - Saves original URL to `~/.agent-recorder/upstreams.json`
+  - Rewrites URL to `http://127.0.0.1:8788/?upstream=<serverKey>`
+- Creates numbered backup (`.agent-recorder.bak`, `.agent-recorder.bak-2`, etc.)
+- Only wraps URL-based servers (skips command-based servers like stdio mode)
+
+**Example:** If you have an Amplitude MCP server at `http://127.0.0.1:9999/`, wrap will:
+
+1. Save `{"amplitude": {"url": "http://127.0.0.1:9999/"}}` to upstreams.json
+2. Rewrite Claude config to point to `http://127.0.0.1:8788/?upstream=amplitude`
+3. Agent Recorder routes requests to correct upstream and records events with `upstream_key="amplitude"`
+
+**Recommended workflow:**
+
+```bash
+agent-recorder install
+agent-recorder configure wrap --all
+agent-recorder start --daemon
+# Restart Claude Code
+```
 
 ### Diagnose MCP
 

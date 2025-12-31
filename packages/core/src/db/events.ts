@@ -23,6 +23,7 @@ interface EventRow {
   skill_name: string | null;
   tool_name: string | null;
   mcp_method: string | null;
+  upstream_key: string | null;
   started_at: string;
   ended_at: string | null;
   status: string;
@@ -45,6 +46,7 @@ function rowToEvent(row: EventRow): BaseEvent {
     skillName: row.skill_name,
     toolName: row.tool_name,
     mcpMethod: row.mcp_method,
+    upstreamKey: row.upstream_key,
     startedAt: row.started_at,
     endedAt: row.ended_at,
     status: row.status as EventStatus,
@@ -67,6 +69,7 @@ export interface InsertEventInput {
   skillName?: string | null;
   toolName?: string | null;
   mcpMethod?: string | null;
+  upstreamKey?: string | null;
   startedAt: string;
   endedAt?: string | null;
   status: EventStatus;
@@ -83,9 +86,9 @@ export function insertEvent(
   const stmt = db.prepare(`
     INSERT INTO events (
       id, session_id, parent_event_id, sequence, event_type,
-      agent_role, agent_name, skill_name, tool_name, mcp_method,
+      agent_role, agent_name, skill_name, tool_name, mcp_method, upstream_key,
       started_at, ended_at, status, input_json, output_json, error_category, created_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
   `);
 
   stmt.run(
@@ -99,6 +102,7 @@ export function insertEvent(
     event.skillName ?? null,
     event.toolName ?? null,
     event.mcpMethod ?? null,
+    event.upstreamKey ?? null,
     event.startedAt,
     event.endedAt ?? null,
     event.status,
@@ -194,6 +198,8 @@ export interface EventFilterOptions {
   status?: EventStatus;
   /** Filter by error category */
   errorCategory?: ErrorCategory;
+  /** Filter by upstream key */
+  upstreamKey?: string;
   /** Only events with sequence > sinceSeq */
   sinceSeq?: number;
   /** Maximum number of events to return */
@@ -220,6 +226,10 @@ export function getEventsBySessionFiltered(
   if (options.errorCategory) {
     conditions.push("error_category = ?");
     params.push(options.errorCategory);
+  }
+  if (options.upstreamKey) {
+    conditions.push("upstream_key = ?");
+    params.push(options.upstreamKey);
   }
   if (options.sinceSeq !== undefined) {
     conditions.push("sequence > ?");

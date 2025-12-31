@@ -24,6 +24,7 @@ function mockEvent(overrides: Partial<BaseEvent> = {}): BaseEvent {
     skillName: null,
     toolName: "read_file",
     mcpMethod: "tools/call",
+    upstreamKey: null,
     startedAt: "2024-01-01T00:00:00.000Z",
     endedAt: "2024-01-01T00:00:01.000Z",
     status: "success",

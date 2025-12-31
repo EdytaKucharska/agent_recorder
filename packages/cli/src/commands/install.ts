@@ -37,6 +37,7 @@ export async function installCommand(): Promise<void> {
   const config = loadConfig();
   const dataDir = join(homedir(), ".agent-recorder");
   const envFile = join(dataDir, ".env");
+  const upstreamsFile = join(dataDir, "upstreams.json");
 
   // Create data directory if missing
   if (!existsSync(dataDir)) {
@@ -52,6 +53,14 @@ export async function installCommand(): Promise<void> {
     console.log(`Created: ${envFile}`);
   } else {
     console.log(`Already exists: ${envFile}`);
+  }
+
+  // Create upstreams.json ONLY if it doesn't exist
+  if (!existsSync(upstreamsFile)) {
+    writeFileSync(upstreamsFile, "{}\n");
+    console.log(`Created: ${upstreamsFile}`);
+  } else {
+    console.log(`Already exists: ${upstreamsFile}`);
   }
 
   // Print next steps

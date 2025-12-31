@@ -77,6 +77,44 @@ describe("events", () => {
       expect(result2!.toolName).toBe("session2-tool");
     });
   });
+
+  describe("upstream_key column", () => {
+    it("persists and retrieves upstreamKey correctly", () => {
+      const eventWithUpstream = insertEvent(db, {
+        id: randomUUID(),
+        sessionId,
+        sequence: 1,
+        eventType: "tool_call",
+        agentRole: "assistant",
+        agentName: "claude-code",
+        toolName: "test-tool",
+        mcpMethod: "tools/call",
+        upstreamKey: "amplitude",
+        startedAt: new Date().toISOString(),
+        status: "success",
+      });
+
+      expect(eventWithUpstream.upstreamKey).toBe("amplitude");
+    });
+
+    it("handles null upstreamKey correctly", () => {
+      const eventWithoutUpstream = insertEvent(db, {
+        id: randomUUID(),
+        sessionId,
+        sequence: 2,
+        eventType: "tool_call",
+        agentRole: "assistant",
+        agentName: "claude-code",
+        toolName: "test-tool",
+        mcpMethod: "tools/call",
+        upstreamKey: null,
+        startedAt: new Date().toISOString(),
+        status: "success",
+      });
+
+      expect(eventWithoutUpstream.upstreamKey).toBeNull();
+    });
+  });
 });
 
 /**

@@ -20,6 +20,7 @@ export interface RecordToolCallOptions {
   parentEventId?: string | null;
   toolName: string;
   mcpMethod?: string;
+  upstreamKey?: string | null;
   input: unknown;
   output: unknown;
   status: EventStatus;
@@ -44,6 +45,7 @@ export function recordToolCall(options: RecordToolCallOptions): string | null {
     parentEventId,
     toolName,
     mcpMethod,
+    upstreamKey,
     input,
     output,
     status,
@@ -71,6 +73,7 @@ export function recordToolCall(options: RecordToolCallOptions): string | null {
     // - agentName = "claude-code" (stable identifier for the agent)
     // - toolName = actual tool name from params.name
     // - mcpMethod = "tools/call" (or whatever MCP method was invoked)
+    // - upstreamKey = server key from router mode (null for legacy single-upstream)
     insertEvent(db, {
       id: eventId,
       sessionId,
@@ -82,6 +85,7 @@ export function recordToolCall(options: RecordToolCallOptions): string | null {
       skillName: null,
       toolName,
       mcpMethod: mcpMethod ?? "tools/call",
+      upstreamKey: upstreamKey ?? null,
       startedAt,
       endedAt,
       status,
@@ -94,8 +98,9 @@ export function recordToolCall(options: RecordToolCallOptions): string | null {
     if (debugProxy) {
       const durationMs =
         new Date(endedAt).getTime() - new Date(startedAt).getTime();
+      const upstreamInfo = upstreamKey ? ` upstream=${upstreamKey}` : "";
       console.log(
-        `[DEBUG] tool_call: session=${sessionId} seq=${sequence} tool=${toolName} status=${status} duration=${durationMs}ms`
+        `[DEBUG] tool_call: session=${sessionId} seq=${sequence} tool=${toolName}${upstreamInfo} status=${status} duration=${durationMs}ms`
       );
     }
 

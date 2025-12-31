@@ -8,6 +8,6 @@
 export * from "./types/index.js";
 export * from "./db/index.js";
 export * from "./utils/index.js";
-export { loadConfig, type Config } from "./config.js";
+export { loadConfig, getDefaultUpstreamsPath, type Config } from "./config.js";
 export * from "./daemon-paths.js";
 export * from "./lockfile.js";

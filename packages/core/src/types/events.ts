@@ -61,6 +61,9 @@ export interface BaseEvent {
   /** MCP method name (e.g., "tools/call") */
   mcpMethod: string | null;
 
+  /** Upstream server key (for router mode, null for legacy single-upstream) */
+  upstreamKey: string | null;
+
   /** When this event started (ISO 8601) */
   startedAt: string;
 

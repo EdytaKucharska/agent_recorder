@@ -30,6 +30,7 @@ import {
   configureClaudeCommand,
   configureShowCommand,
 } from "./commands/configure.js";
+import { configureWrapCommand } from "./commands/configure-wrap.js";
 import { diagnoseMcpCommand } from "./commands/diagnose.js";
 import { mockMcpCommand } from "./commands/mock-mcp.js";
 import { tuiCommand } from "./commands/tui.js";
@@ -214,6 +215,17 @@ configure
   .description("Show current Claude Code configuration")
   .action(async () => {
     await configureShowCommand();
+  });
+
+configure
+  .command("wrap")
+  .description("Wrap Claude Code MCP servers with Agent Recorder proxy")
+  .option("--all", "Wrap all URL-based MCP servers (default)", true)
+  .option("--only <servers>", "Wrap only specific servers (comma-separated)")
+  .option("--dry-run", "Show changes without writing")
+  .option("--undo", "Restore from backup")
+  .action(async (options) => {
+    await configureWrapCommand(options);
   });
 
 // Diagnose command group

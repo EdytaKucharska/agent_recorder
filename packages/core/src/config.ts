@@ -11,6 +11,11 @@ export function getDefaultDbPath(): string {
   return join(homedir(), ".agent-recorder", "agent-recorder.sqlite");
 }
 
+/** Get the default upstreams registry path */
+export function getDefaultUpstreamsPath(): string {
+  return join(homedir(), ".agent-recorder", "upstreams.json");
+}
+
 export interface Config {
   /** Port for the daemon to listen on (default: 8787) */
   listenPort: number;
@@ -26,6 +31,9 @@ export interface Config {
 
   /** URL of downstream MCP server to forward requests to (optional) */
   downstreamMcpUrl: string | null;
+
+  /** Path to upstreams registry file for router mode (default: ~/.agent-recorder/upstreams.json) */
+  upstreamsPath: string;
 
   /** Enable debug logging for MCP proxy (tools/call only) */
   debugProxy: boolean;
@@ -55,6 +63,8 @@ export function loadConfig(): Config {
     : DEFAULT_REDACT_KEYS;
   const mcpProxyPort = parseInt(process.env["AR_MCP_PROXY_PORT"] ?? "8788", 10);
   const downstreamMcpUrl = process.env["AR_DOWNSTREAM_MCP_URL"] ?? null;
+  const upstreamsPath =
+    process.env["AR_UPSTREAMS_PATH"] ?? getDefaultUpstreamsPath();
   const debugProxy = process.env["AR_DEBUG_PROXY"] === "1";
 
   return {
@@ -63,6 +73,7 @@ export function loadConfig(): Config {
     redactKeys,
     mcpProxyPort,
     downstreamMcpUrl,
+    upstreamsPath,
     debugProxy,
   };
 }
