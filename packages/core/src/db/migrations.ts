@@ -57,14 +57,23 @@ export function runMigrations(
 
 /**
  * Gets the default migrations directory path.
- * Assumes this file is at packages/core/src/db/migrations.ts (or dist/db/migrations.js)
- * and migrations are at packages/core/migrations/
+ * In vendored build: db/migrations.js → ../migrations
+ * In dev build: dist/db/migrations.js → ../../migrations
  */
 export function getDefaultMigrationsDir(): string {
-  // ESM-compatible __dirname equivalent
   const __filename = fileURLToPath(import.meta.url);
   const __dirname = dirname(__filename);
-  // When running from dist, we need to go up to packages/core
-  // This works for both src and dist locations
-  return join(__dirname, "..", "..", "migrations");
+
+  // Try vendored path first (one level up from db/)
+  const vendorPath = join(__dirname, "..", "migrations");
+  // Fall back to dev path (two levels up from dist/db/)
+  const devPath = join(__dirname, "..", "..", "migrations");
+
+  // Check which path exists
+  try {
+    readdirSync(vendorPath);
+    return vendorPath;
+  } catch {
+    return devPath;
+  }
 }
