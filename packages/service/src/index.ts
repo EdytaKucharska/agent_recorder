@@ -20,6 +20,7 @@ import {
 import { createServer, startServer } from "./server.js";
 import { createMcpProxy } from "./mcp/index.js";
 import { createSessionManager } from "./session-manager.js";
+import { AutoWrapManager } from "./mcp/auto-wrap-manager.js";
 
 export { createServer, startServer } from "./server.js";
 export { createMcpProxy } from "./mcp/index.js";
@@ -89,6 +90,23 @@ export async function startDaemon(
   daemonSessionId = sessionManager.sessionId;
   daemonStartedAt = startedAt;
 
+  // Initialize auto-wrap manager (fail-open: errors logged, not thrown)
+  let autoWrapManager: AutoWrapManager | null = null;
+  try {
+    autoWrapManager = new AutoWrapManager({
+      config,
+      sessionId: sessionManager.sessionId,
+      db,
+    });
+    await autoWrapManager.initialize();
+  } catch (error) {
+    console.error(
+      "[AutoWrap] Initialization failed:",
+      error instanceof Error ? error.message : "Unknown error"
+    );
+    console.error("Continuing in manual wrap mode...");
+  }
+
   // Create and start REST API server (pass currentSessionId for /api/sessions/current)
   const app = await createServer({
     db,
@@ -133,6 +151,12 @@ export async function startDaemon(
     sessionManager.shutdown(status);
     await proxy.close();
     await app.close();
+
+    // Cleanup auto-wrap manager
+    if (autoWrapManager) {
+      await autoWrapManager.cleanup();
+    }
+
     db.close();
 
     // Clean up PID file and lock in daemon mode

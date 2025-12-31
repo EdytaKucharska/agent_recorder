@@ -11,3 +11,5 @@ export * from "./utils/index.js";
 export { loadConfig, getDefaultUpstreamsPath, type Config } from "./config.js";
 export * from "./daemon-paths.js";
 export * from "./lockfile.js";
+export * from "./wrap-utils.js";
+export * from "./claude-config.js";

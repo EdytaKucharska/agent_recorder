@@ -3,58 +3,25 @@
  * Supports router mode for multiple upstream servers.
  */
 
-import { loadConfig } from "@agent-recorder/core";
-import * as fs from "node:fs";
-import * as path from "node:path";
 import {
+  loadConfig,
+  loadUpstreamsRegistry,
+  saveUpstreamsRegistry,
+  registerUrlServer,
+  getProxyUrl,
   detectClaudeConfig,
   readJsonFile,
   writeJsonFileAtomic,
-  formatPath,
-} from "../config/claude-paths.js";
+} from "@agent-recorder/core";
+import * as fs from "node:fs";
+import * as path from "node:path";
+import { formatPath } from "../config/claude-paths.js";
 
 export interface ConfigureWrapOptions {
   all?: boolean;
   only?: string;
   dryRun?: boolean;
   undo?: boolean;
-}
-
-interface UpstreamsRegistry {
-  [serverKey: string]: {
-    url: string;
-  };
-}
-
-/**
- * Load upstreams registry from file.
- */
-function loadUpstreamsRegistry(upstreamsPath: string): UpstreamsRegistry {
-  try {
-    if (!fs.existsSync(upstreamsPath)) {
-      return {};
-    }
-    const content = fs.readFileSync(upstreamsPath, "utf-8");
-    return JSON.parse(content) as UpstreamsRegistry;
-  } catch {
-    return {};
-  }
-}
-
-/**
- * Save upstreams registry to file.
- */
-function saveUpstreamsRegistry(
-  upstreamsPath: string,
-  registry: UpstreamsRegistry
-): void {
-  const dir = path.dirname(upstreamsPath);
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
-
-  const content = JSON.stringify(registry, null, 2) + "\n";
-  fs.writeFileSync(upstreamsPath, content, "utf-8");
 }
 
 /**
@@ -204,8 +171,8 @@ export async function configureWrapCommand(
       // Save to upstreams registry
       upstreamsRegistry[serverKey] = { url: originalUrl };
 
-      // Rewrite URL with upstream param
-      const proxyUrl = `http://127.0.0.1:${config.mcpProxyPort}/?upstream=${serverKey}`;
+      // Rewrite URL with upstream param (using shared utility)
+      const proxyUrl = getProxyUrl(serverKey, config.mcpProxyPort);
       newMcpServers[serverKey] = {
         ...serverEntry,
         url: proxyUrl,
@@ -236,9 +203,7 @@ export async function configureWrapCommand(
         const entry = mcpServers[key] as Record<string, unknown>;
         console.log(`  - ${key}`);
         console.log(`      Original: ${entry.url}`);
-        console.log(
-          `      Proxy: http://127.0.0.1:${config.mcpProxyPort}/?upstream=${key}`
-        );
+        console.log(`      Proxy: ${getProxyUrl(key, config.mcpProxyPort)}`);
       }
       console.log("");
     }
