@@ -5,6 +5,10 @@ on:
     tags:
       - "v*.*.*"
 
+permissions:
+  id-token: write    # Required for npm OIDC trusted publishing
+  contents: read
+
 jobs:
   publish:
     name: Publish to npm
@@ -22,7 +26,6 @@ jobs:
         with:
           node-version: 20
           cache: pnpm
-          registry-url: https://registry.npmjs.org
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -66,6 +69,4 @@ jobs:
 
       - name: Publish to npm
         working-directory: packages/dist
-        run: npm publish --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --access public --provenance
