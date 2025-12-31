@@ -35,7 +35,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/yourusername/agent-recorder"
+    "url": "git+https://github.com/EdytaKucharska/agent_recorder.git"
   },
   "keywords": [
     "claude",
