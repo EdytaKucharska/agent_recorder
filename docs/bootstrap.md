@@ -3,26 +3,31 @@
 ## Quick Start
 
 1. Install dependencies and build:
+
    ```bash
    pnpm install && pnpm bootstrap
    ```
 
 2. Install Agent Recorder (creates data directory and config template):
+
    ```bash
    pnpm ar install
    ```
 
 3. Start the daemon (background mode):
+
    ```bash
    pnpm ar start --daemon --env-file ~/.agent-recorder/.env
    ```
 
 4. Configure Claude Code (automatic):
+
    ```bash
    pnpm ar configure claude
    ```
 
    Or manually add to `~/.claude/settings.json` (Claude Code v2):
+
    ```json
    {
      "mcpServers": {
@@ -56,6 +61,7 @@ agent-recorder start --daemon --force   # Restart if already running
 ```
 
 Options:
+
 - `--daemon` / `-d`: Run in background (daemon mode)
 - `--env-file` / `-e`: Load environment variables from file
 - `--force` / `-f`: Kill existing daemon and restart
@@ -85,6 +91,7 @@ agent-recorder status
 ```
 
 Shows comprehensive daemon status:
+
 ```
 Agent Recorder Status
 =====================
@@ -114,6 +121,7 @@ agent-recorder doctor
 ```
 
 Comprehensive health check with sections:
+
 - **Daemon**: State, PID, mode, uptime, REST API, MCP Proxy
 - **Configuration**: Claude config path, MCP entry, URL match
 - **Downstream MCP**: Configured, reachable status
@@ -130,6 +138,7 @@ agent-recorder configure show                # Show current config status
 ```
 
 Safely configures Claude Code to use Agent Recorder:
+
 - Detects v2 (`~/.claude/settings.json`) or legacy (`~/.config/claude/mcp.json`)
 - Creates backup before making changes
 - Adds/updates `mcpServers.agent-recorder.url`
@@ -142,6 +151,7 @@ agent-recorder diagnose mcp
 ```
 
 Focused MCP diagnostics:
+
 - Checks proxy is listening
 - Checks downstream is configured and reachable
 - Tests `tools/list` through proxy
@@ -156,11 +166,13 @@ agent-recorder mock-mcp --print-env          # Print export command
 ```
 
 Starts a minimal MCP server for end-to-end testing:
+
 - Implements `tools/list` returning one `echo` tool
 - Implements `tools/call` for `echo(text)` → returns text
 - Useful for testing proxy without a real downstream
 
 Example workflow:
+
 ```bash
 # Terminal 1
 agent-recorder mock-mcp --port 9999
@@ -204,6 +216,7 @@ agent-recorder sessions tail <session-id> --interval 500 --n 100
 ```
 
 Streams session events in real-time (like `tail -f`). Options:
+
 - `--interval <ms>`: Poll interval in milliseconds (default: 1000)
 - `--n <count>`: Number of recent events to show initially (default: 50)
 
@@ -218,6 +231,7 @@ agent-recorder sessions view <session-id> --follow
 ```
 
 View session events with a header summary showing counts and top tools. Options:
+
 - `--tail <n>`: Show last N events (default: 200)
 - `--follow`: Follow new events in real-time (like `tail -f`)
 - `--interval <ms>`: Poll interval for follow mode (default: 1000)
@@ -229,6 +243,7 @@ agent-recorder sessions stats <session-id>
 ```
 
 Shows detailed session statistics:
+
 - Tool call counts (sorted by frequency)
 - Slowest calls (top 10)
 - Error categories
@@ -245,6 +260,7 @@ agent-recorder sessions grep <session-id> --json
 ```
 
 Filter session events by criteria. Options:
+
 - `--tool <name>`: Filter by tool name
 - `--status <status>`: Filter by status (success|error|timeout|running|cancelled)
 - `--error <category>`: Filter by error category
@@ -259,9 +275,11 @@ agent-recorder sessions summarize <session-id> --format json
 ```
 
 Generate a safe, metadata-only summary. Options:
+
 - `--format <format>`: Output format, `text` or `json` (default: text)
 
 Summary includes:
+
 - Total tool calls with breakdown by tool
 - Error count and categories
 - Slowest call
@@ -275,6 +293,7 @@ agent-recorder export <session-id> --format json --out session.json
 ```
 
 Exports session events to JSON or JSONL format. Options:
+
 - `--format <format>`: Output format, `json` or `jsonl` (default: jsonl)
 - `--out <path>`: Output file path (stdout if not specified)
 
@@ -284,26 +303,26 @@ JSONL format includes a `type` field on each line (`session` or `event`).
 
 Events can have the following error categories when `status` is `error` or `timeout`:
 
-| Category | Meaning |
-|----------|---------|
-| `downstream_timeout` | Request to downstream MCP server timed out |
-| `downstream_unreachable` | Could not connect to downstream MCP server |
-| `jsonrpc_invalid` | JSON-RPC request/response validation failed |
-| `jsonrpc_error` | Downstream returned JSON-RPC error response |
-| `unknown` | Unclassified error |
+| Category                 | Meaning                                     |
+| ------------------------ | ------------------------------------------- |
+| `downstream_timeout`     | Request to downstream MCP server timed out  |
+| `downstream_unreachable` | Could not connect to downstream MCP server  |
+| `jsonrpc_invalid`        | JSON-RPC request/response validation failed |
+| `jsonrpc_error`          | Downstream returned JSON-RPC error response |
+| `unknown`                | Unclassified error                          |
 
 Error categories are derived from metadata only - no content is exposed.
 
 ## Environment Variables
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `AR_LISTEN_PORT` | 8787 | REST API port |
-| `AR_MCP_PROXY_PORT` | 8788 | MCP proxy port |
-| `AR_DB_PATH` | `~/.agent-recorder/agent-recorder.sqlite` | SQLite database path |
-| `AR_DOWNSTREAM_MCP_URL` | (none) | Upstream MCP server URL (optional) |
-| `AR_REDACT_KEYS` | (see .env.example) | Comma-separated keys to redact |
-| `AR_DEBUG_PROXY` | (off) | Set to `1` for debug logging of tool calls |
+| Variable                | Default                                   | Description                                |
+| ----------------------- | ----------------------------------------- | ------------------------------------------ |
+| `AR_LISTEN_PORT`        | 8787                                      | REST API port                              |
+| `AR_MCP_PROXY_PORT`     | 8788                                      | MCP proxy port                             |
+| `AR_DB_PATH`            | `~/.agent-recorder/agent-recorder.sqlite` | SQLite database path                       |
+| `AR_DOWNSTREAM_MCP_URL` | (none)                                    | Upstream MCP server URL (optional)         |
+| `AR_REDACT_KEYS`        | (see .env.example)                        | Comma-separated keys to redact             |
+| `AR_DEBUG_PROXY`        | (off)                                     | Set to `1` for debug logging of tool calls |
 
 ## Debug Logging
 
@@ -314,6 +333,7 @@ AR_DEBUG_PROXY=1 agent-recorder start
 ```
 
 Or add to your `.env` file:
+
 ```
 AR_DEBUG_PROXY=1
 ```
@@ -324,13 +344,14 @@ Debug output shows metadata only (no payloads): session ID, sequence number, too
 
 The daemon handles signals gracefully:
 
-| Signal | Session Status | Use Case |
-|--------|---------------|----------|
-| SIGINT (Ctrl+C) | completed | User intentionally stopped |
-| SIGTERM | cancelled | External termination (stop command) |
-| SIGHUP | (ignored) | No reload needed |
+| Signal          | Session Status | Use Case                            |
+| --------------- | -------------- | ----------------------------------- |
+| SIGINT (Ctrl+C) | completed      | User intentionally stopped          |
+| SIGTERM         | cancelled      | External termination (stop command) |
+| SIGHUP          | (ignored)      | No reload needed                    |
 
 On shutdown:
+
 - Active session is marked with the appropriate status
 - All connections are closed cleanly
 - PID file and lock file are removed (daemon mode)
@@ -359,13 +380,13 @@ pnpm ar stop
 
 All daemon state files are stored in `~/.agent-recorder/`:
 
-| File | Purpose |
-|------|---------|
-| `agent-recorder.pid` | Process ID of running daemon |
-| `agent-recorder.lock` | Single-instance lock file |
-| `agent-recorder.log` | Daemon stdout/stderr output |
-| `agent-recorder.sqlite` | Event database |
-| `.env` | Environment configuration |
+| File                    | Purpose                      |
+| ----------------------- | ---------------------------- |
+| `agent-recorder.pid`    | Process ID of running daemon |
+| `agent-recorder.lock`   | Single-instance lock file    |
+| `agent-recorder.log`    | Daemon stdout/stderr output  |
+| `agent-recorder.sqlite` | Event database               |
+| `.env`                  | Environment configuration    |
 
 ### Single Instance
 
@@ -423,6 +444,7 @@ This allows the publish workflow to authenticate automatically via OIDC - no sec
 1. **Ensure CI passes** on main branch
 
 2. **Create and push a version tag**:
+
    ```bash
    git tag v0.3.0
    git push origin v0.3.0
@@ -431,6 +453,7 @@ This allows the publish workflow to authenticate automatically via OIDC - no sec
 3. **Monitor the publish workflow** in GitHub Actions
 
 The publish workflow will:
+
 - Build the distribution package
 - Set the package version to match the tag (e.g., `v0.3.0` → `0.3.0`)
 - Publish `packages/dist` to npm as `agent-recorder` with provenance
