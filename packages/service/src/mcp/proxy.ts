@@ -410,7 +410,8 @@ export async function createMcpProxy(
         const provider = httpProviders.find((p) => p.id === parsed.providerId);
 
         if (!provider) {
-          // Record error event
+          // Record error event with JSON-RPC error structure
+          const errorMessage = `Cannot connect to Unknown provider: ${parsed.providerId}`;
           if (sessionId) {
             recordToolCall({
               db,
@@ -419,7 +420,10 @@ export async function createMcpProxy(
               mcpMethod: "tools/call",
               upstreamKey: parsed.providerId,
               input: toolInput,
-              output: { error: `Unknown provider: ${parsed.providerId}` },
+              output: {
+                code: -32000,
+                message: errorMessage,
+              },
               status: "error",
               startedAt,
               endedAt: new Date().toISOString(),
@@ -432,7 +436,7 @@ export async function createMcpProxy(
             jsonrpc: "2.0",
             error: {
               code: -32000,
-              message: `Unknown provider: ${parsed.providerId}`,
+              message: errorMessage,
               data: { category: "downstream_unreachable" },
             },
             id: body.id ?? null,

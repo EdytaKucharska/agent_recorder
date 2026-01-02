@@ -135,18 +135,7 @@ describe("MCP Hub Mode", () => {
   });
 
   it("aggregates tools/list from multiple providers with namespacing", async () => {
-    const config = loadConfig();
-    const { app, close } = await createMcpProxy({
-      db,
-      config: {
-        ...config,
-        // Override providers path for test
-        mcpProxyPort: 19991,
-      },
-      sessionId,
-    });
-
-    // Override providers path by directly writing to default location
+    // Write providers BEFORE creating proxy so it loads them during init
     writeProvidersFile(
       {
         version: 1,
@@ -157,6 +146,17 @@ describe("MCP Hub Mode", () => {
       },
       getDefaultProvidersPath()
     );
+
+    const config = loadConfig();
+    const { app, close } = await createMcpProxy({
+      db,
+      config: {
+        ...config,
+        // Override providers path for test
+        mcpProxyPort: 19991,
+      },
+      sessionId,
+    });
 
     try {
       await app.listen({ port: 19991, host: "127.0.0.1" });
@@ -198,17 +198,7 @@ describe("MCP Hub Mode", () => {
   });
 
   it("routes tools/call to correct provider and records with upstreamKey", async () => {
-    const config = loadConfig();
-    const { app, close } = await createMcpProxy({
-      db,
-      config: {
-        ...config,
-        mcpProxyPort: 19992,
-      },
-      sessionId,
-    });
-
-    // Write providers to default location
+    // Write providers BEFORE creating proxy so it loads them during init
     writeProvidersFile(
       {
         version: 1,
@@ -219,6 +209,16 @@ describe("MCP Hub Mode", () => {
       },
       getDefaultProvidersPath()
     );
+
+    const config = loadConfig();
+    const { app, close } = await createMcpProxy({
+      db,
+      config: {
+        ...config,
+        mcpProxyPort: 19992,
+      },
+      sessionId,
+    });
 
     try {
       await app.listen({ port: 19992, host: "127.0.0.1" });
@@ -286,16 +286,7 @@ describe("MCP Hub Mode", () => {
   });
 
   it("handles unknown provider gracefully", async () => {
-    const config = loadConfig();
-    const { app, close } = await createMcpProxy({
-      db,
-      config: {
-        ...config,
-        mcpProxyPort: 19993,
-      },
-      sessionId,
-    });
-
+    // Write providers BEFORE creating proxy so it loads them during init
     writeProvidersFile(
       {
         version: 1,
@@ -305,6 +296,16 @@ describe("MCP Hub Mode", () => {
       },
       getDefaultProvidersPath()
     );
+
+    const config = loadConfig();
+    const { app, close } = await createMcpProxy({
+      db,
+      config: {
+        ...config,
+        mcpProxyPort: 19993,
+      },
+      sessionId,
+    });
 
     try {
       await app.listen({ port: 19993, host: "127.0.0.1" });
@@ -352,17 +353,7 @@ describe("MCP Hub Mode", () => {
   });
 
   it("handles provider failure during tools/list gracefully", async () => {
-    const config = loadConfig();
-    const { app, close } = await createMcpProxy({
-      db,
-      config: {
-        ...config,
-        mcpProxyPort: 19994,
-        debugProxy: true, // Enable debug logging for failure test
-      },
-      sessionId,
-    });
-
+    // Write providers BEFORE creating proxy so it loads them during init
     // Include one unreachable provider
     writeProvidersFile(
       {
@@ -374,6 +365,17 @@ describe("MCP Hub Mode", () => {
       },
       getDefaultProvidersPath()
     );
+
+    const config = loadConfig();
+    const { app, close } = await createMcpProxy({
+      db,
+      config: {
+        ...config,
+        mcpProxyPort: 19994,
+        debugProxy: true, // Enable debug logging for failure test
+      },
+      sessionId,
+    });
 
     try {
       await app.listen({ port: 19994, host: "127.0.0.1" });
