@@ -96,7 +96,9 @@ export class AutoWrapManager {
       }
 
       if (wrappedCount > 0) {
-        console.log(`[AutoWrap] Successfully wrapped ${wrappedCount} server(s)`);
+        console.log(
+          `[AutoWrap] Successfully wrapped ${wrappedCount} server(s)`
+        );
       }
 
       // TODO: Wrap stdio servers (later phase)

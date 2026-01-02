@@ -2,7 +2,12 @@
  * Configure commands - manage Claude Code integration.
  */
 
-import { loadConfig } from "@agent-recorder/core";
+import {
+  loadConfig,
+  readProvidersFile,
+  writeProvidersFile,
+  getDefaultProvidersPath,
+} from "@agent-recorder/core";
 import {
   detectClaudeConfig,
   getV2ConfigPath,
@@ -14,11 +19,16 @@ import {
   setMcpServerEntry,
   formatPath,
 } from "../config/claude-paths.js";
+import { hubifyClaudeConfig, mergeProviders } from "../config/hubify.js";
+import * as path from "node:path";
+import * as fs from "node:fs";
 
 export interface ConfigureClaudeOptions {
   path?: string;
   legacy?: boolean;
   dryRun?: boolean;
+  hubify?: boolean;
+  backupDir?: string;
 }
 
 /**
@@ -60,6 +70,40 @@ export async function configureClaudeCommand(
     existingConfig = {};
   }
 
+  // Hubify mode: replace all MCP servers with agent-recorder hub
+  if (options.hubify) {
+    return await handleHubify(
+      configPath,
+      configKind,
+      existingConfig,
+      isNewFile,
+      expectedUrl,
+      options
+    );
+  }
+
+  // Normal mode: just add/update agent-recorder entry
+  return await handleNormalConfigure(
+    configPath,
+    configKind,
+    existingConfig,
+    isNewFile,
+    expectedUrl,
+    options
+  );
+}
+
+/**
+ * Handle normal (non-hubify) configure mode.
+ */
+async function handleNormalConfigure(
+  configPath: string,
+  configKind: "v2" | "legacy",
+  existingConfig: Record<string, unknown>,
+  isNewFile: boolean,
+  expectedUrl: string,
+  options: ConfigureClaudeOptions
+): Promise<void> {
   // Check current state
   const currentEntry = getMcpServerEntry(existingConfig);
   const currentUrl = currentEntry?.url;
@@ -108,6 +152,137 @@ export async function configureClaudeCommand(
   }
 
   console.log(`Set: mcpServers.agent-recorder.url = ${expectedUrl}`);
+  console.log("");
+  console.log("Restart Claude Code to apply changes.");
+}
+
+/**
+ * Handle hubify mode: replace all MCP servers with agent-recorder hub.
+ */
+async function handleHubify(
+  configPath: string,
+  configKind: "v2" | "legacy",
+  existingConfig: Record<string, unknown>,
+  isNewFile: boolean,
+  expectedUrl: string,
+  options: ConfigureClaudeOptions
+): Promise<void> {
+  // Transform config to hubify mode
+  const hubifyResult = hubifyClaudeConfig(existingConfig, expectedUrl);
+
+  // Get mcpServers keys before and after
+  const beforeKeys = Object.keys(
+    (existingConfig.mcpServers as Record<string, unknown>) ?? {}
+  );
+  const afterKeys = ["agent-recorder"];
+
+  // Dry run output
+  if (options.dryRun) {
+    console.log("Dry run - no changes will be made\n");
+    console.log(`Config file: ${formatPath(configPath)} (${configKind})`);
+    console.log(`File exists: ${!isNewFile}`);
+    console.log("");
+
+    console.log("Would import providers:");
+    if (hubifyResult.importedKeys.length === 0) {
+      console.log("  (none - no existing MCP servers found)");
+    } else {
+      for (const key of hubifyResult.importedKeys) {
+        const provider = hubifyResult.providers.find((p) => p.id === key);
+        if (provider) {
+          console.log(
+            `  - ${key} (${provider.type}${provider.type === "http" ? `: ${provider.url}` : ""})`
+          );
+        }
+      }
+    }
+    console.log("");
+
+    console.log("Would update mcpServers:");
+    console.log(`  Before: [${beforeKeys.join(", ") || "empty"}]`);
+    console.log(`  After:  [${afterKeys.join(", ")}]`);
+    console.log("");
+
+    console.log(`Would write ${hubifyResult.providers.length} provider(s) to:`);
+    console.log(`  ${formatPath(getDefaultProvidersPath())}`);
+
+    return;
+  }
+
+  // Create backup if file exists (in custom location if specified)
+  let backupPath: string | null = null;
+  if (!isNewFile) {
+    if (options.backupDir) {
+      // Custom backup directory
+      const backupDir = options.backupDir;
+      if (!fs.existsSync(backupDir)) {
+        fs.mkdirSync(backupDir, { recursive: true });
+      }
+
+      const timestamp = new Date()
+        .toISOString()
+        .replace(/[-:T]/g, "")
+        .slice(0, 14);
+      const basename = path.basename(configPath);
+      backupPath = path.join(backupDir, `${basename}.bak-${timestamp}`);
+      fs.copyFileSync(configPath, backupPath);
+    } else {
+      // Default backup alongside original file
+      backupPath = createBackup(configPath);
+    }
+  }
+
+  // Write updated Claude config
+  writeJsonFileAtomic(configPath, hubifyResult.newClaudeConfig);
+
+  // Merge providers into providers.json
+  const providersPath = getDefaultProvidersPath();
+  const existingProviders = readProvidersFile(providersPath);
+  const mergedProviders = mergeProviders(
+    existingProviders,
+    hubifyResult.providers
+  );
+  writeProvidersFile(mergedProviders, providersPath);
+
+  // Report results
+  console.log("Hubify mode: replaced all MCP servers with agent-recorder hub");
+  console.log("");
+  console.log(`Config file: ${formatPath(configPath)} (${configKind})`);
+  if (backupPath) {
+    console.log(`Backup:      ${formatPath(backupPath)}`);
+  }
+  console.log("");
+
+  console.log(`Imported ${hubifyResult.importedKeys.length} provider(s):`);
+  if (hubifyResult.importedKeys.length === 0) {
+    console.log("  (none - no existing MCP servers found)");
+  } else {
+    for (const key of hubifyResult.importedKeys) {
+      const provider = hubifyResult.providers.find((p) => p.id === key);
+      if (provider) {
+        console.log(
+          `  - ${key} (${provider.type}${provider.type === "http" ? `: ${provider.url}` : ""})`
+        );
+      }
+    }
+  }
+
+  if (hubifyResult.skippedKeys.length > 0) {
+    console.log("");
+    console.log(`Skipped ${hubifyResult.skippedKeys.length} key(s):`);
+    for (const key of hubifyResult.skippedKeys) {
+      console.log(`  - ${key} (already agent-recorder)`);
+    }
+  }
+
+  console.log("");
+  console.log("mcpServers updated:");
+  console.log(`  Before: [${beforeKeys.join(", ") || "empty"}]`);
+  console.log(`  After:  [${afterKeys.join(", ")}]`);
+  console.log("");
+
+  console.log(`Providers file: ${formatPath(providersPath)}`);
+  console.log(`Total providers: ${mergedProviders.providers.length}`);
   console.log("");
   console.log("Restart Claude Code to apply changes.");
 }

@@ -13,3 +13,4 @@ export * from "./daemon-paths.js";
 export * from "./lockfile.js";
 export * from "./wrap-utils.js";
 export * from "./claude-config.js";
+export * from "./providers/index.js";

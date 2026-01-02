@@ -89,6 +89,7 @@ export async function registerEventsRoutes(
           return {
             toolName: event.toolName,
             mcpMethod: event.mcpMethod,
+            upstreamKey: event.upstreamKey,
             startedAt: event.startedAt,
           };
         }

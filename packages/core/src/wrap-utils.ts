@@ -16,7 +16,9 @@ export interface UpstreamsRegistry {
  * Load upstreams registry from file.
  * Returns empty object if file doesn't exist or is invalid.
  */
-export function loadUpstreamsRegistry(upstreamsPath: string): UpstreamsRegistry {
+export function loadUpstreamsRegistry(
+  upstreamsPath: string
+): UpstreamsRegistry {
   try {
     if (!fs.existsSync(upstreamsPath)) {
       return {};

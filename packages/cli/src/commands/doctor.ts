@@ -7,6 +7,9 @@ import {
   readPidFile,
   isProcessRunning,
   type Session,
+  readProvidersFile,
+  getDefaultProvidersPath,
+  type HttpProvider,
 } from "@agent-recorder/core";
 import {
   detectClaudeConfig,
@@ -29,6 +32,7 @@ interface HealthResponse {
 interface LatestEventInfo {
   toolName: string | null;
   mcpMethod: string | null;
+  upstreamKey: string | null;
   startedAt: string;
 }
 
@@ -120,6 +124,43 @@ async function categorizeError(url: string): Promise<string> {
     }
     return "unreachable";
   }
+}
+
+/**
+ * Check if an HTTP provider is reachable by calling tools/list.
+ */
+async function checkHttpProvider(provider: HttpProvider): Promise<boolean> {
+  try {
+    const response = await fetch(provider.url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        ...(provider.headers ?? {}),
+      },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        method: "tools/list",
+        id: 1,
+      }),
+      signal: AbortSignal.timeout(3000),
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Check if Claude config is in hubify mode (only agent-recorder entry).
+ */
+function isHubified(configData: unknown): boolean {
+  if (!configData || typeof configData !== "object") return false;
+  const config = configData as { mcpServers?: Record<string, unknown> };
+  if (!config.mcpServers || typeof config.mcpServers !== "object") return false;
+
+  const keys = Object.keys(config.mcpServers);
+  return keys.length === 1 && keys[0] === "agent-recorder";
 }
 
 export async function doctorCommand(): Promise<void> {
@@ -221,30 +262,90 @@ export async function doctorCommand(): Promise<void> {
   }
   console.log("");
 
-  // === DOWNSTREAM MCP ===
-  console.log("Downstream MCP");
-  console.log("==============");
+  // === HUB MODE ===
+  console.log("Hub Mode");
+  console.log("========");
 
-  if (!config.downstreamMcpUrl) {
-    console.log("Configured:     not set");
-    console.log("                (proxy will return 503 for MCP requests)");
-    suggestions.push("Set AR_DOWNSTREAM_MCP_URL environment variable");
-    suggestions.push("Or test with: agent-recorder mock-mcp --port 9999");
-  } else {
-    console.log(`Configured:     ${config.downstreamMcpUrl}`);
+  const providersPath = getDefaultProvidersPath();
+  let providersFile;
+  try {
+    providersFile = readProvidersFile(providersPath);
+  } catch {
+    providersFile = null;
+  }
 
-    const errorType = await categorizeError(config.downstreamMcpUrl);
-    if (errorType === "ok") {
-      console.log("Reachable:      \u2713");
-    } else {
-      console.log(`Reachable:      \u2717 (${errorType})`);
+  const httpProviders =
+    providersFile?.providers.filter(
+      (p): p is HttpProvider => p.type === "http"
+    ) ?? [];
+
+  const hubEnabled = httpProviders.length > 0;
+
+  console.log(`Status:         ${hubEnabled ? "enabled" : "disabled"}`);
+
+  if (hubEnabled) {
+    console.log(`Providers:      ${formatPath(providersPath)}`);
+    console.log(`Total:          ${providersFile!.providers.length}`);
+    console.log(`HTTP:           ${httpProviders.length}`);
+
+    // Check reachability of HTTP providers
+    const reachabilityResults = await Promise.all(
+      httpProviders.map((p) => checkHttpProvider(p))
+    );
+    const reachableCount = reachabilityResults.filter((r) => r).length;
+
+    console.log(`Reachable:      ${reachableCount}/${httpProviders.length}`);
+
+    if (reachableCount < httpProviders.length) {
       hasErrors = true;
-      if (errorType === "connection refused") {
-        suggestions.push("Check if downstream MCP server is running");
+      suggestions.push("Check unreachable HTTP providers (see providers.json)");
+    }
+
+    // Check if Claude config is hubified
+    if (claudeConfig.kind !== "none" && claudeConfig.path) {
+      const configData = readJsonFile(claudeConfig.path);
+      if (configData && !isHubified(configData)) {
+        console.log("Claude Config:  not hubified");
+        suggestions.push(
+          "Run: agent-recorder install (or configure claude --hubify)"
+        );
       }
+    }
+  } else {
+    console.log("                (no HTTP providers configured)");
+    if (claudeConfig.kind !== "none") {
+      suggestions.push("Run: agent-recorder install to set up hub mode");
     }
   }
   console.log("");
+
+  // === DOWNSTREAM MCP ===
+  // Only show this section if hub mode is disabled (legacy mode)
+  if (!hubEnabled) {
+    console.log("Downstream MCP (Legacy Mode)");
+    console.log("=============================");
+
+    if (!config.downstreamMcpUrl) {
+      console.log("Configured:     not set");
+      console.log("                (proxy will return 503 for MCP requests)");
+      suggestions.push("Set AR_DOWNSTREAM_MCP_URL environment variable");
+      suggestions.push("Or test with: agent-recorder mock-mcp --port 9999");
+    } else {
+      console.log(`Configured:     ${config.downstreamMcpUrl}`);
+
+      const errorType = await categorizeError(config.downstreamMcpUrl);
+      if (errorType === "ok") {
+        console.log("Reachable:      \u2713");
+      } else {
+        console.log(`Reachable:      \u2717 (${errorType})`);
+        hasErrors = true;
+        if (errorType === "connection refused") {
+          suggestions.push("Check if downstream MCP server is running");
+        }
+      }
+    }
+    console.log("");
+  }
 
   // === RECORDING HEALTH ===
   console.log("Recording");
@@ -275,7 +376,21 @@ export async function doctorCommand(): Promise<void> {
       );
 
       if (latestEvent) {
-        const name = latestEvent.mcpMethod || latestEvent.toolName || "unknown";
+        const parts: string[] = [];
+
+        // Show provider if available (hub mode)
+        if (latestEvent.upstreamKey) {
+          parts.push(latestEvent.upstreamKey);
+        }
+
+        // Show tool name
+        if (latestEvent.toolName) {
+          parts.push(latestEvent.toolName);
+        } else if (latestEvent.mcpMethod) {
+          parts.push(latestEvent.mcpMethod);
+        }
+
+        const name = parts.length > 0 ? parts.join(".") : "unknown";
         console.log(
           `Last tool_call: ${formatTimeAgo(latestEvent.startedAt)} (${name})`
         );

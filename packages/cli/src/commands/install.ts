@@ -1,12 +1,26 @@
 /**
  * Install command - set up ~/.agent-recorder/ and print configuration.
  * This command is idempotent - it won't overwrite existing files.
+ * Automatically configures Claude Code with hubify mode unless --no-configure is specified.
  */
 
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { loadConfig } from "@agent-recorder/core";
+import {
+  loadConfig,
+  readProvidersFile,
+  writeProvidersFile,
+  getDefaultProvidersPath,
+} from "@agent-recorder/core";
+import {
+  detectClaudeConfig,
+  readJsonFile,
+  writeJsonFileAtomic,
+  createBackup,
+  formatPath,
+} from "../config/claude-paths.js";
+import { hubifyClaudeConfig, mergeProviders } from "../config/hubify.js";
 
 /** Default .env file template */
 const ENV_TEMPLATE = `# Agent Recorder Configuration
@@ -26,14 +40,22 @@ AR_MCP_PROXY_PORT=8788
 # AR_DEBUG_PROXY=1
 `;
 
+export interface InstallOptions {
+  /** Skip automatic Claude Code configuration (default: false) */
+  noConfigure?: boolean;
+}
+
 /**
  * Install Agent Recorder - create data directory and env file template.
  * This command is idempotent:
  * - Creates ~/.agent-recorder/ if it doesn't exist
  * - Creates ~/.agent-recorder/.env ONLY if it doesn't exist
  * - Never overwrites user files
+ * - Automatically configures Claude Code with hubify mode unless --no-configure
  */
-export async function installCommand(): Promise<void> {
+export async function installCommand(
+  options: InstallOptions = {}
+): Promise<void> {
   const config = loadConfig();
   const dataDir = join(homedir(), ".agent-recorder");
   const envFile = join(dataDir, ".env");
@@ -63,6 +85,18 @@ export async function installCommand(): Promise<void> {
     console.log(`Already exists: ${upstreamsFile}`);
   }
 
+  console.log("");
+
+  // Automatically configure Claude Code with hubify mode unless --no-configure
+  if (!options.noConfigure) {
+    await runAutoHubify(config);
+  } else {
+    console.log("Skipped Claude Code configuration (--no-configure specified)");
+    console.log("");
+    console.log("To configure Claude Code manually, run:");
+    console.log("  agent-recorder configure claude --hubify");
+  }
+
   // Print next steps
   console.log(`
 Agent Recorder installed!
@@ -70,20 +104,103 @@ Agent Recorder installed!
 Data directory: ${dataDir}
 Env file: ${envFile}
 
-Claude Code v2 (recommended):
-Add to ~/.claude/settings.json:
-
-{
-  "mcpServers": {
-    "agent-recorder": {
-      "url": "http://127.0.0.1:${config.mcpProxyPort}/"
-    }
-  }
-}
-
 Next steps:
 1. Edit ${envFile} if needed
 2. Start the daemon: agent-recorder start --env-file ${envFile}
-3. Restart Claude Code to connect
+3. Restart Claude Code to apply changes
 `);
+}
+
+/**
+ * Automatically configure Claude Code with hubify mode.
+ * This is the equivalent of running: agent-recorder configure claude --hubify
+ */
+async function runAutoHubify(
+  config: ReturnType<typeof loadConfig>
+): Promise<void> {
+  const expectedUrl = `http://127.0.0.1:${config.mcpProxyPort}/`;
+
+  // Detect Claude config
+  const detected = detectClaudeConfig();
+
+  if (detected.kind === "none" || !detected.path) {
+    console.log("No Claude Code config found.");
+    console.log("Claude Code will need to be configured manually.");
+    console.log("");
+    console.log("To configure later, run:");
+    console.log("  agent-recorder configure claude --hubify");
+    return;
+  }
+
+  const configPath = detected.path;
+
+  // Read existing config
+  const existingConfig = readJsonFile(configPath);
+  if (existingConfig === null) {
+    console.log(`Error: Could not read config at ${formatPath(configPath)}`);
+    return;
+  }
+
+  // Transform config to hubify mode
+  const hubifyResult = hubifyClaudeConfig(existingConfig, expectedUrl);
+
+  // Get mcpServers keys before and after
+  const beforeKeys = Object.keys(
+    (existingConfig.mcpServers as Record<string, unknown>) ?? {}
+  );
+  const afterKeys = ["agent-recorder"];
+
+  // Create backup
+  const backupPath = createBackup(configPath);
+
+  // Write updated Claude config
+  writeJsonFileAtomic(configPath, hubifyResult.newClaudeConfig);
+
+  // Merge providers into providers.json
+  const providersPath = getDefaultProvidersPath();
+  const existingProviders = readProvidersFile(providersPath);
+  const mergedProviders = mergeProviders(
+    existingProviders,
+    hubifyResult.providers
+  );
+  writeProvidersFile(mergedProviders, providersPath);
+
+  // Report results
+  console.log("Configured Claude Code with hubify mode");
+  console.log("");
+  console.log(`Config file: ${formatPath(configPath)} (${detected.kind})`);
+  console.log(`Backup:      ${formatPath(backupPath)}`);
+  console.log("");
+
+  console.log(`Imported ${hubifyResult.importedKeys.length} provider(s):`);
+  if (hubifyResult.importedKeys.length === 0) {
+    console.log("  (none - no existing MCP servers found)");
+  } else {
+    for (const key of hubifyResult.importedKeys) {
+      const provider = hubifyResult.providers.find((p) => p.id === key);
+      if (provider) {
+        console.log(
+          `  - ${key} (${provider.type}${provider.type === "http" ? `: ${provider.url}` : ""})`
+        );
+      }
+    }
+  }
+
+  if (hubifyResult.skippedKeys.length > 0) {
+    console.log("");
+    console.log(`Skipped ${hubifyResult.skippedKeys.length} key(s):`);
+    for (const key of hubifyResult.skippedKeys) {
+      console.log(`  - ${key} (already agent-recorder)`);
+    }
+  }
+
+  console.log("");
+  console.log("mcpServers updated:");
+  console.log(`  Before: [${beforeKeys.join(", ") || "empty"}]`);
+  console.log(`  After:  [${afterKeys.join(", ")}]`);
+  console.log("");
+
+  console.log(`Providers file: ${formatPath(providersPath)}`);
+  console.log(`Total providers: ${mergedProviders.providers.length}`);
+  console.log("");
 }

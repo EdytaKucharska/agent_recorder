@@ -2,11 +2,16 @@
  * MCP Proxy using Streamable HTTP transport.
  * Handles POST requests only, returns application/json responses.
  * Records tools/call events to the database.
+ * Supports hub mode: aggregates multiple HTTP providers.
  */
 
 import Fastify, { type FastifyInstance } from "fastify";
 import type Database from "better-sqlite3";
-import type { Config } from "@agent-recorder/core";
+import type { Config, HttpProvider } from "@agent-recorder/core";
+import {
+  readProvidersFile,
+  getDefaultProvidersPath,
+} from "@agent-recorder/core";
 import { readFileSync } from "node:fs";
 import {
   type JsonRpcRequest,
@@ -127,6 +132,192 @@ function buildForwardHeaders(
 }
 
 /**
+ * Load HTTP providers from providers.json.
+ * If no providers found and downstreamMcpUrl is set, creates implicit "default" provider.
+ */
+function loadHttpProviders(
+  providersPath: string,
+  downstreamMcpUrl: string | null
+): HttpProvider[] {
+  const providersFile = readProvidersFile(providersPath);
+  const httpProviders = providersFile.providers.filter(
+    (p): p is HttpProvider => p.type === "http"
+  );
+
+  // Fallback: if no providers and downstreamMcpUrl is set, create implicit default
+  if (httpProviders.length === 0 && downstreamMcpUrl) {
+    return [
+      {
+        id: "default",
+        type: "http",
+        url: downstreamMcpUrl,
+      },
+    ];
+  }
+
+  return httpProviders;
+}
+
+/**
+ * Call tools/list on a single provider.
+ * Returns tools array or null on error.
+ */
+async function fetchProviderTools(
+  provider: HttpProvider,
+  timeoutMs: number,
+  debugProxy: boolean
+): Promise<unknown[] | null> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(provider.url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        ...(provider.headers ?? {}),
+      },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        method: "tools/list",
+        id: 1,
+      }),
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      if (debugProxy) {
+        console.warn(
+          `[Hub] Provider ${provider.id} tools/list failed: HTTP ${response.status}`
+        );
+      }
+      return null;
+    }
+
+    const data = (await response.json()) as JsonRpcResponse;
+
+    if (isErrorResponse(data)) {
+      if (debugProxy) {
+        console.warn(
+          `[Hub] Provider ${provider.id} tools/list error: ${data.error.message}`
+        );
+      }
+      return null;
+    }
+
+    const result = data.result;
+    if (
+      !result ||
+      typeof result !== "object" ||
+      Array.isArray(result) ||
+      !("tools" in result)
+    ) {
+      if (debugProxy) {
+        console.warn(
+          `[Hub] Provider ${provider.id} tools/list result missing tools`
+        );
+      }
+      return null;
+    }
+
+    const tools = (result as { tools: unknown }).tools;
+    if (!Array.isArray(tools)) {
+      if (debugProxy) {
+        console.warn(
+          `[Hub] Provider ${provider.id} tools/list returned non-array`
+        );
+      }
+      return null;
+    }
+
+    return tools;
+  } catch (error) {
+    clearTimeout(timeoutId);
+    if (debugProxy) {
+      const msg = error instanceof Error ? error.message : "Unknown error";
+      console.warn(`[Hub] Provider ${provider.id} unreachable: ${msg}`);
+    }
+    return null;
+  }
+}
+
+/**
+ * Aggregate tools/list from all HTTP providers with namespacing.
+ * Returns merged JSON-RPC response.
+ */
+async function aggregateToolsList(
+  providers: HttpProvider[],
+  requestId: string | number | null | undefined,
+  timeoutMs: number,
+  debugProxy: boolean
+): Promise<JsonRpcResponse> {
+  const allTools: unknown[] = [];
+
+  // Fetch tools from each provider in parallel
+  const results = await Promise.all(
+    providers.map((p) => fetchProviderTools(p, timeoutMs, debugProxy))
+  );
+
+  // Merge results with namespacing
+  for (let i = 0; i < providers.length; i++) {
+    const provider = providers[i]!;
+    const tools = results[i];
+
+    if (!tools) {
+      // Provider failed - skip but log
+      if (debugProxy) {
+        console.log(`[Hub] Omitting tools from ${provider.id} (failed)`);
+      }
+      continue;
+    }
+
+    // Namespace each tool with provider ID
+    for (const tool of tools) {
+      if (
+        tool &&
+        typeof tool === "object" &&
+        !Array.isArray(tool) &&
+        "name" in tool &&
+        typeof tool.name === "string"
+      ) {
+        const namespacedTool = {
+          ...tool,
+          name: `${provider.id}.${tool.name}`,
+        };
+        allTools.push(namespacedTool);
+      }
+    }
+  }
+
+  return {
+    jsonrpc: "2.0",
+    result: { tools: allTools },
+    id: requestId ?? null,
+  };
+}
+
+/**
+ * Parse namespaced tool name into provider ID and tool name.
+ * Returns null if format is invalid.
+ */
+function parseNamespacedTool(
+  name: string
+): { providerId: string; toolName: string } | null {
+  const dotIndex = name.indexOf(".");
+  if (dotIndex === -1 || dotIndex === 0 || dotIndex === name.length - 1) {
+    return null;
+  }
+
+  return {
+    providerId: name.slice(0, dotIndex),
+    toolName: name.slice(dotIndex + 1),
+  };
+}
+
+/**
  * Create an MCP proxy server.
  */
 export async function createMcpProxy(
@@ -140,6 +331,17 @@ export async function createMcpProxy(
     mcpProxyPort,
     debugProxy,
   } = config;
+
+  // Load HTTP providers for hub mode
+  const providersPath = getDefaultProvidersPath();
+  const httpProviders = loadHttpProviders(providersPath, downstreamMcpUrl);
+
+  if (debugProxy && httpProviders.length > 0) {
+    console.log(
+      `[Hub] Loaded ${httpProviders.length} HTTP provider(s):`,
+      httpProviders.map((p) => p.id).join(", ")
+    );
+  }
 
   const app = Fastify({ logger: false });
 
@@ -157,41 +359,6 @@ export async function createMcpProxy(
         : null;
     const upstreamKeyStr = typeof upstreamKey === "string" ? upstreamKey : null;
 
-    // Determine downstream URL based on router mode logic
-    let finalDownstreamUrl: string | null = null;
-
-    if (upstreamKeyStr) {
-      // Router mode: lookup upstream in registry
-      const registry = loadUpstreamsRegistry(upstreamsPath);
-      const upstream = registry[upstreamKeyStr];
-
-      if (!upstream) {
-        return reply.code(404).send({
-          jsonrpc: "2.0",
-          error: {
-            code: -32000,
-            message: `Unknown upstream: ${upstreamKeyStr}`,
-          },
-          id: null,
-        });
-      }
-
-      finalDownstreamUrl = upstream.url;
-    } else if (downstreamMcpUrl) {
-      // Legacy mode: use configured downstream URL
-      finalDownstreamUrl = downstreamMcpUrl;
-    } else {
-      // No downstream configured
-      return reply.code(503).send({
-        jsonrpc: "2.0",
-        error: {
-          code: -32000,
-          message: "Downstream MCP server not configured",
-        },
-        id: null,
-      });
-    }
-
     // Validate minimal JSON-RPC shape
     const validationError = validateJsonRpcRequest(request.body);
     if (validationError) {
@@ -207,9 +374,20 @@ export async function createMcpProxy(
 
     const body = request.body as JsonRpcRequest;
 
-    // Check if this is a tools/call request
-    const isToolCall = isToolsCallRequest(body);
+    // Hub mode: Handle tools/list by aggregating from all providers
+    if (body.method === "tools/list" && httpProviders.length > 0) {
+      const response = await aggregateToolsList(
+        httpProviders,
+        body.id,
+        timeoutMs,
+        debugProxy
+      );
+      return reply.code(200).send(response);
+    }
+
+    // Declare variables for tool call tracking
     const startedAt = new Date().toISOString();
+    const isToolCall = isToolsCallRequest(body);
     let toolName: string | null = null;
     let toolInput: unknown = null;
 
@@ -217,6 +395,93 @@ export async function createMcpProxy(
       const params = body.params as { name: string; arguments?: unknown };
       toolName = params.name;
       toolInput = params.arguments ?? {};
+    }
+
+    // Determine downstream URL based on router/hub mode logic
+    let finalDownstreamUrl: string | null = null;
+    let finalUpstreamKey: string | null = upstreamKeyStr;
+
+    // Hub mode: Parse namespaced tool name for tools/call
+    if (isToolCall && toolName && httpProviders.length > 0) {
+      const parsed = parseNamespacedTool(toolName);
+
+      if (parsed) {
+        // Find provider by ID
+        const provider = httpProviders.find((p) => p.id === parsed.providerId);
+
+        if (!provider) {
+          // Record error event
+          if (sessionId) {
+            recordToolCall({
+              db,
+              sessionId,
+              toolName: parsed.toolName,
+              mcpMethod: "tools/call",
+              upstreamKey: parsed.providerId,
+              input: toolInput,
+              output: { error: `Unknown provider: ${parsed.providerId}` },
+              status: "error",
+              startedAt,
+              endedAt: new Date().toISOString(),
+              redactKeys,
+              debugProxy,
+            });
+          }
+
+          return reply.code(404).send({
+            jsonrpc: "2.0",
+            error: {
+              code: -32000,
+              message: `Unknown provider: ${parsed.providerId}`,
+              data: { category: "downstream_unreachable" },
+            },
+            id: body.id ?? null,
+          });
+        }
+
+        // Route to provider URL
+        finalDownstreamUrl = provider.url;
+        finalUpstreamKey = parsed.providerId;
+        // Rewrite tool name without namespace prefix
+        toolName = parsed.toolName;
+        (body.params as { name: string }).name = parsed.toolName;
+      }
+    }
+
+    // Router mode: lookup upstream in registry
+    if (!finalDownstreamUrl && upstreamKeyStr) {
+      const registry = loadUpstreamsRegistry(upstreamsPath);
+      const upstream = registry[upstreamKeyStr];
+
+      if (!upstream) {
+        return reply.code(404).send({
+          jsonrpc: "2.0",
+          error: {
+            code: -32000,
+            message: `Unknown upstream: ${upstreamKeyStr}`,
+          },
+          id: null,
+        });
+      }
+
+      finalDownstreamUrl = upstream.url;
+    }
+
+    // Legacy mode: use configured downstream URL
+    if (!finalDownstreamUrl && downstreamMcpUrl) {
+      finalDownstreamUrl = downstreamMcpUrl;
+    }
+
+    // No downstream configured
+    if (!finalDownstreamUrl) {
+      return reply.code(503).send({
+        jsonrpc: "2.0",
+        error: {
+          code: -32000,
+          message: "Downstream MCP server not configured",
+        },
+        id: null,
+      });
     }
 
     // Build headers to forward
@@ -227,7 +492,7 @@ export async function createMcpProxy(
     // Log routing decision if debug enabled
     if (debugProxy) {
       console.log(
-        `[PROXY] Routing ${body.method} to ${finalDownstreamUrl} (upstream: ${upstreamKeyStr ?? "legacy"})`
+        `[PROXY] Routing ${body.method} to ${finalDownstreamUrl} (upstream: ${finalUpstreamKey ?? "legacy"})`
       );
     }
 
@@ -258,7 +523,7 @@ export async function createMcpProxy(
             sessionId,
             toolName,
             mcpMethod: "tools/call",
-            upstreamKey: upstreamKeyStr,
+            upstreamKey: finalUpstreamKey,
             input: toolInput,
             output: { error: "Request timeout" },
             status: "timeout",
@@ -288,7 +553,7 @@ export async function createMcpProxy(
         `Failed to forward request to downstream: ${errorName}: ${errorMessage}`
       );
       console.error(`  Target URL: ${finalDownstreamUrl}`);
-      console.error(`  Upstream key: ${upstreamKeyStr ?? "(legacy mode)"}`);
+      console.error(`  Upstream key: ${finalUpstreamKey ?? "(legacy mode)"}`);
 
       return reply.code(502).send({
         jsonrpc: "2.0",
@@ -332,7 +597,7 @@ export async function createMcpProxy(
         sessionId,
         toolName,
         mcpMethod: "tools/call",
-        upstreamKey: upstreamKeyStr,
+        upstreamKey: finalUpstreamKey,
         input: toolInput,
         output,
         status,

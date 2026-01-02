@@ -127,6 +127,44 @@ See `docs/telemetry.md`.
 
 ---
 
+## Development
+
+### Running Tests
+
+```bash
+# Run all tests
+pnpm test
+
+# Run specific test suite
+pnpm test install.test.ts
+```
+
+### Smoke Tests
+
+End-to-end smoke tests validate critical functionality:
+
+**Hubify Smoke Test** - Tests the complete hub mode flow:
+
+```bash
+# Run hubify smoke test
+node scripts/smoke-hubify.mjs
+```
+
+This test:
+
+1. Creates a temporary HOME with mock Claude config (2 providers)
+2. Runs `agent-recorder install` (automatic hubify)
+3. Starts 2 mock MCP servers on ports 19001/19002
+4. Starts the daemon with custom test ports (18787/18788)
+5. Calls hub `tools/list` and verifies aggregation of 2 namespaced tools
+6. Calls hub `tools/call` and verifies routing to correct provider
+7. Queries REST API to verify events recorded with `upstreamKey`
+8. Cleans up all processes and temporary files
+
+The test exits with code 0 on success, 1 on failure.
+
+---
+
 ## License
 
 MIT

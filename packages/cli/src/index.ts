@@ -174,9 +174,15 @@ program
 // Install command
 program
   .command("install")
-  .description("Set up ~/.agent-recorder/ and print configuration")
-  .action(async () => {
-    await installCommand();
+  .description(
+    "Set up ~/.agent-recorder/ and configure Claude Code (with hubify mode)"
+  )
+  .option("--no-configure", "Skip automatic Claude Code configuration")
+  .action(async (options: { noConfigure?: boolean }) => {
+    const installOpts = options.noConfigure
+      ? { noConfigure: options.noConfigure }
+      : {};
+    await installCommand(installOpts);
   });
 
 // Doctor command

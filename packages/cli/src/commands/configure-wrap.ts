@@ -7,7 +7,6 @@ import {
   loadConfig,
   loadUpstreamsRegistry,
   saveUpstreamsRegistry,
-  registerUrlServer,
   getProxyUrl,
   detectClaudeConfig,
   readJsonFile,
