@@ -104,6 +104,49 @@ async function stopProcess(pid: number, timeoutMs = 5000): Promise<boolean> {
   return false;
 }
 
+/**
+ * Resolve the service entry point path.
+ * Works in both development (monorepo) and production (npm package) modes.
+ */
+function resolveServiceEntry(): string {
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = dirname(__filename);
+
+  // Development mode: packages/service/dist/index.js
+  const devPath = join(
+    __dirname,
+    "..",
+    "..",
+    "..",
+    "service",
+    "dist",
+    "index.js"
+  );
+
+  if (existsSync(devPath)) {
+    return devPath;
+  }
+
+  // Production mode: vendor/node_modules/@agent-recorder/service/index.js
+  // When installed as npm package, this file is at:
+  // node_modules/agent-recorder/vendor/node_modules/@agent-recorder/cli/commands/start.js
+  // Service is at:
+  // node_modules/agent-recorder/vendor/node_modules/@agent-recorder/service/index.js
+  // So we need to go up 2 levels (.., ..) to reach @agent-recorder/
+  const prodPath = join(__dirname, "..", "..", "service", "index.js");
+
+  if (existsSync(prodPath)) {
+    return prodPath;
+  }
+
+  throw new Error(
+    "Could not locate service entry point. " +
+      "Checked:\n" +
+      `  Dev:  ${devPath}\n` +
+      `  Prod: ${prodPath}`
+  );
+}
+
 export async function startCommand(
   options: StartCommandOptions = {}
 ): Promise<void> {
@@ -155,18 +198,8 @@ export async function startCommand(
     // Daemon mode: fork and exit parent
     console.log("Starting daemon in background...");
 
-    // Find the service entry point
-    const __filename = fileURLToPath(import.meta.url);
-    const __dirname = dirname(__filename);
-    const serviceEntry = join(
-      __dirname,
-      "..",
-      "..",
-      "..",
-      "service",
-      "dist",
-      "index.js"
-    );
+    // Find the service entry point (works in both dev and prod)
+    const serviceEntry = resolveServiceEntry();
 
     // Open log file for daemon output
     const logFd = openSync(
