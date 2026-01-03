@@ -1,7 +1,5 @@
 # Agent Recorder
 
-> A local-first flight recorder for Claude Code.
-
 Agent Recorder captures a **persistent, human-readable timeline** of what Claude Code actually executed — including **subagents**, **skills**, and **MCP tool calls** — so developers can debug, audit, and trust agent behavior.
 
 Agent Recorder is designed to be **calm infrastructure**, not a chatbot.
