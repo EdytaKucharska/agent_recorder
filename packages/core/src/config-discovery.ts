@@ -55,13 +55,21 @@ export interface DiscoveryResult {
   /** All config sources checked */
   sources: ConfigSource[];
   /** Aggregate of all discovered servers with their source */
-  allServers: Array<McpServerConfig & { source: ConfigSourceType; sourcePath: string }>;
+  allServers: Array<
+    McpServerConfig & { source: ConfigSourceType; sourcePath: string }
+  >;
   /** Servers that can be proxied (HTTP-based) */
-  httpServers: Array<McpServerConfig & { source: ConfigSourceType; sourcePath: string }>;
+  httpServers: Array<
+    McpServerConfig & { source: ConfigSourceType; sourcePath: string }
+  >;
   /** Servers that cannot be proxied yet (stdio-based) */
-  stdioServers: Array<McpServerConfig & { source: ConfigSourceType; sourcePath: string }>;
+  stdioServers: Array<
+    McpServerConfig & { source: ConfigSourceType; sourcePath: string }
+  >;
   /** Remote servers (external URLs) */
-  remoteServers: Array<McpServerConfig & { source: ConfigSourceType; sourcePath: string }>;
+  remoteServers: Array<
+    McpServerConfig & { source: ConfigSourceType; sourcePath: string }
+  >;
 }
 
 // ============================================================================
@@ -71,7 +79,9 @@ export interface DiscoveryResult {
 /**
  * Get all known config file paths to check.
  */
-export function getConfigPaths(projectDir?: string): Array<{ type: ConfigSourceType; name: string; path: string }> {
+export function getConfigPaths(
+  projectDir?: string
+): Array<{ type: ConfigSourceType; name: string; path: string }> {
   const home = os.homedir();
   const cwd = projectDir ?? process.cwd();
 
@@ -124,9 +134,21 @@ function getVSCodeUserSettingsPath(): string {
 
   switch (platform) {
     case "darwin":
-      return path.join(home, "Library", "Application Support", "Code", "User", "settings.json");
+      return path.join(
+        home,
+        "Library",
+        "Application Support",
+        "Code",
+        "User",
+        "settings.json"
+      );
     case "win32":
-      return path.join(process.env.APPDATA ?? home, "Code", "User", "settings.json");
+      return path.join(
+        process.env.APPDATA ?? home,
+        "Code",
+        "User",
+        "settings.json"
+      );
     default: // linux and others
       return path.join(home, ".config", "Code", "User", "settings.json");
   }
@@ -149,7 +171,11 @@ export function isRemoteUrl(url: string): boolean {
       return false;
     }
     // Local network ranges
-    if (host.startsWith("192.168.") || host.startsWith("10.") || host.startsWith("172.")) {
+    if (
+      host.startsWith("192.168.") ||
+      host.startsWith("10.") ||
+      host.startsWith("172.")
+    ) {
       return false;
     }
     return true;
@@ -161,7 +187,9 @@ export function isRemoteUrl(url: string): boolean {
 /**
  * Determine server type from config.
  */
-export function getServerType(server: McpServerConfig): "http" | "stdio" | "remote" {
+export function getServerType(
+  server: McpServerConfig
+): "http" | "stdio" | "remote" {
   if (server.command) {
     return "stdio";
   }
@@ -183,8 +211,15 @@ export function getServerType(server: McpServerConfig): "http" | "stdio" | "remo
  * Parse MCP servers from a config object.
  * Handles both Claude Code and Cursor formats (they use the same schema).
  */
-function parseMcpServers(configData: unknown, sourceType: ConfigSourceType): McpServerConfig[] {
-  if (!configData || typeof configData !== "object" || Array.isArray(configData)) {
+function parseMcpServers(
+  configData: unknown,
+  sourceType: ConfigSourceType
+): McpServerConfig[] {
+  if (
+    !configData ||
+    typeof configData !== "object" ||
+    Array.isArray(configData)
+  ) {
     return [];
   }
 
@@ -203,7 +238,11 @@ function parseMcpServers(configData: unknown, sourceType: ConfigSourceType): Mcp
     mcpServers = config.mcpServers as Record<string, unknown>;
   }
 
-  if (!mcpServers || typeof mcpServers !== "object" || Array.isArray(mcpServers)) {
+  if (
+    !mcpServers ||
+    typeof mcpServers !== "object" ||
+    Array.isArray(mcpServers)
+  ) {
     return [];
   }
 
@@ -262,7 +301,7 @@ function readConfigFile(filePath: string): { data: unknown; error?: string } {
   } catch (err) {
     return {
       data: null,
-      error: err instanceof Error ? err.message : "Unknown parse error"
+      error: err instanceof Error ? err.message : "Unknown parse error",
     };
   }
 }
@@ -314,9 +353,9 @@ export function discoverAllConfigs(projectDir?: string): DiscoveryResult {
   }
 
   // Categorize servers
-  const httpServers = allServers.filter(s => getServerType(s) === "http");
-  const stdioServers = allServers.filter(s => getServerType(s) === "stdio");
-  const remoteServers = allServers.filter(s => getServerType(s) === "remote");
+  const httpServers = allServers.filter((s) => getServerType(s) === "http");
+  const stdioServers = allServers.filter((s) => getServerType(s) === "stdio");
+  const remoteServers = allServers.filter((s) => getServerType(s) === "remote");
 
   return {
     sources,
@@ -355,8 +394,12 @@ export function getDiscoverySummary(result: DiscoveryResult): string {
   lines.push("Server Summary:");
   lines.push(`  Total discovered:    ${result.allServers.length}`);
   lines.push(`  HTTP (local):        ${result.httpServers.length} (can proxy)`);
-  lines.push(`  HTTP (remote):       ${result.remoteServers.length} (can proxy)`);
-  lines.push(`  Stdio:               ${result.stdioServers.length} (not yet supported)`);
+  lines.push(
+    `  HTTP (remote):       ${result.remoteServers.length} (can proxy)`
+  );
+  lines.push(
+    `  Stdio:               ${result.stdioServers.length} (not yet supported)`
+  );
   lines.push("");
 
   // Detailed server list
@@ -364,7 +407,8 @@ export function getDiscoverySummary(result: DiscoveryResult): string {
     lines.push("Discovered Servers:");
     for (const server of result.allServers) {
       const type = getServerType(server);
-      const typeLabel = type === "remote" ? "remote" : type === "stdio" ? "stdio" : "http";
+      const typeLabel =
+        type === "remote" ? "remote" : type === "stdio" ? "stdio" : "http";
       const canProxy = type !== "stdio" ? "✓" : "✗";
 
       let endpoint = "";
@@ -374,7 +418,9 @@ export function getDiscoverySummary(result: DiscoveryResult): string {
         endpoint = `${server.command} ${(server.args ?? []).join(" ")}`.trim();
       }
 
-      lines.push(`  ${canProxy} ${server.key.padEnd(20)} [${typeLabel.padEnd(6)}] ${endpoint}`);
+      lines.push(
+        `  ${canProxy} ${server.key.padEnd(20)} [${typeLabel.padEnd(6)}] ${endpoint}`
+      );
       lines.push(`    Source: ${getSourceLabel(server.source)}`);
     }
   }
@@ -394,7 +440,7 @@ function getSourceLabel(source: ConfigSourceType): string {
   const labels: Record<ConfigSourceType, string> = {
     "claude-code-v2": "Claude Code (global)",
     "claude-code-legacy": "Claude Code (legacy)",
-    "cursor": "Cursor IDE",
+    cursor: "Cursor IDE",
     "vscode-user": "VS Code (user)",
     "project-claude": "Project (.claude)",
     "project-cursor": "Project (.cursor)",

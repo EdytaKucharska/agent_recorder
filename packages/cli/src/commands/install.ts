@@ -144,9 +144,10 @@ function serverToProvider(server: McpServerConfig): Provider | null {
  * Import servers from non-Claude sources (Cursor, VS Code, project-level).
  * Returns the list of providers that were imported.
  */
-function importFromOtherSources(
-  providersPath: string
-): { imported: Provider[]; skipped: { key: string; reason: string }[] } {
+function importFromOtherSources(providersPath: string): {
+  imported: Provider[];
+  skipped: { key: string; reason: string }[];
+} {
   const discovery = discoverAllConfigs();
   const imported: Provider[] = [];
   const skipped: { key: string; reason: string }[] = [];
@@ -293,7 +294,9 @@ async function runAutoHubify(
     console.log("------------------------------");
 
     if (otherResult.imported.length > 0) {
-      console.log(`Imported ${otherResult.imported.length} server(s) from other configs:`);
+      console.log(
+        `Imported ${otherResult.imported.length} server(s) from other configs:`
+      );
       for (const provider of otherResult.imported) {
         if (provider.type === "http") {
           console.log(`  ✓ ${provider.id}: ${provider.url}`);
