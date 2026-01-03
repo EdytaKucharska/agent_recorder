@@ -1,6 +1,6 @@
 {
   "name": "agent-recorder",
-  "version": "0.0.13",
+  "version": "1.0.3",
   "description": "Local-first flight recorder for Claude Code",
   "type": "module",
   "bin": {

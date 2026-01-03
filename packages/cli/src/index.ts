@@ -8,6 +8,7 @@
  */
 
 import { Command } from "commander";
+import { createRequire } from "module";
 import { startCommand } from "./commands/start.js";
 import { stopCommand } from "./commands/stop.js";
 import { restartCommand } from "./commands/restart.js";
@@ -36,12 +37,16 @@ import { mockMcpCommand } from "./commands/mock-mcp.js";
 import { tuiCommand } from "./commands/tui.js";
 import { discoverCommand } from "./commands/discover.js";
 
+// Read version from package.json dynamically
+const require = createRequire(import.meta.url);
+const pkg = require("../package.json") as { version: string };
+
 const program = new Command();
 
 program
   .name("agent-recorder")
   .description("Local-first flight recorder for Claude Code")
-  .version("0.0.1");
+  .version(pkg.version);
 
 program
   .command("start")
