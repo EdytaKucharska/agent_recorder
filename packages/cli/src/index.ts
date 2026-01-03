@@ -197,7 +197,9 @@ program
 // Discover command
 program
   .command("discover")
-  .description("Discover MCP servers from all config sources (Claude, Cursor, VS Code, project)")
+  .description(
+    "Discover MCP servers from all config sources (Claude, Cursor, VS Code, project)"
+  )
   .option("--json", "Output as JSON")
   .option("-v, --verbose", "Show additional details")
   .action(async (options) => {

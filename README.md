@@ -92,11 +92,11 @@ See `docs/bootstrap.md` for full documentation.
 
 Agent Recorder works by proxying MCP traffic. It supports different server types:
 
-| Server Type | Support | Notes |
-|-------------|---------|-------|
-| **HTTP (local)** | ✅ Full | Servers running on localhost with `url` field |
+| Server Type       | Support | Notes                                                     |
+| ----------------- | ------- | --------------------------------------------------------- |
+| **HTTP (local)**  | ✅ Full | Servers running on localhost with `url` field             |
 | **HTTP (remote)** | ✅ Full | Cloud-hosted servers like `https://mcp.amplitude.com/mcp` |
-| **Stdio** | ❌ v2 | Command-based servers (`command` + `args`) - coming in v2 |
+| **Stdio**         | ❌ v2   | Command-based servers (`command` + `args`) - coming in v2 |
 
 ### Discovering Your MCP Servers
 
@@ -116,6 +116,7 @@ agent-recorder discover
 ### Testing with Example MCP Servers
 
 **Built-in Mock Server:**
+
 ```bash
 # Terminal 1: Start mock MCP server
 agent-recorder mock-mcp --port 9999
@@ -125,6 +126,7 @@ agent-recorder start
 ```
 
 **Using Real MCP Servers:**
+
 ```bash
 # Fetch server (no API key needed)
 npx -y @modelcontextprotocol/server-fetch
@@ -139,6 +141,7 @@ npx -y @modelcontextprotocol/server-fetch
 ```
 
 **Remote MCP Servers (like Amplitude):**
+
 ```json
 {
   "version": 1,
@@ -157,6 +160,7 @@ npx -y @modelcontextprotocol/server-fetch
 Stdio-based MCP servers (configured with `command` instead of `url`) are **not yet supported** in v1. These servers communicate via stdin/stdout rather than HTTP, which requires a different proxying approach.
 
 **Examples of stdio servers that are NOT yet observable:**
+
 ```json
 {
   "mcpServers": {

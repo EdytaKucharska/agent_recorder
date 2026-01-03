@@ -76,7 +76,11 @@ function getServerStatus(
 /**
  * Print discovery results in human-readable format.
  */
-function printResults(result: DiscoveryResult, proxyPort: number, verbose: boolean): void {
+function printResults(
+  result: DiscoveryResult,
+  proxyPort: number,
+  verbose: boolean
+): void {
   console.log("MCP Configuration Discovery");
   console.log("===========================\n");
 
@@ -85,18 +89,15 @@ function printResults(result: DiscoveryResult, proxyPort: number, verbose: boole
   console.log("-----------------------");
 
   for (const source of result.sources) {
-    const statusIcon = source.exists
-      ? source.error
-        ? "⚠"
-        : "✓"
-      : "·";
+    const statusIcon = source.exists ? (source.error ? "⚠" : "✓") : "·";
 
     const serverCount = source.servers.length;
-    const countLabel = source.exists && !source.error
-      ? ` (${serverCount} server${serverCount !== 1 ? "s" : ""})`
-      : source.error
-        ? ` (error: ${source.error})`
-        : "";
+    const countLabel =
+      source.exists && !source.error
+        ? ` (${serverCount} server${serverCount !== 1 ? "s" : ""})`
+        : source.error
+          ? ` (error: ${source.error})`
+          : "";
 
     console.log(`  ${statusIcon} ${source.name.padEnd(24)}${countLabel}`);
 
@@ -167,7 +168,7 @@ function getSourceLabel(source: string): string {
   const labels: Record<string, string> = {
     "claude-code-v2": "Claude Code (global)",
     "claude-code-legacy": "Claude Code (legacy)",
-    "cursor": "Cursor IDE",
+    cursor: "Cursor IDE",
     "vscode-user": "VS Code (user)",
     "project-claude": "Project (.claude)",
     "project-cursor": "Project (.cursor)",
@@ -192,9 +193,7 @@ function printAdvice(result: DiscoveryResult, proxyPort: number): void {
 
   if (unwrappedHttp.length > 0 || unwrappedRemote.length > 0) {
     const total = unwrappedHttp.length + unwrappedRemote.length;
-    advice.push(
-      `${total} HTTP server(s) can be wrapped for observability.`
-    );
+    advice.push(`${total} HTTP server(s) can be wrapped for observability.`);
     advice.push(`Run: agent-recorder install`);
   }
 
@@ -212,7 +211,9 @@ function printAdvice(result: DiscoveryResult, proxyPort: number): void {
     );
   }
 
-  const vscodeServers = result.allServers.filter((s) => s.source === "vscode-user");
+  const vscodeServers = result.allServers.filter(
+    (s) => s.source === "vscode-user"
+  );
   if (vscodeServers.length > 0) {
     advice.push(
       `Found ${vscodeServers.length} server(s) in VS Code - these need manual import.`
