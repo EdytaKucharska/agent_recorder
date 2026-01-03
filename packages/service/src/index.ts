@@ -15,6 +15,7 @@ import {
   writePidFile,
   removePidFile,
   releaseLock,
+  installTimestampLogging,
   type SessionStatus,
 } from "@agent-recorder/core";
 import { createServer, startServer } from "./server.js";
@@ -66,6 +67,9 @@ export function getDaemonInfo(): {
 export async function startDaemon(
   options: DaemonOptions = {}
 ): Promise<DaemonHandle> {
+  // Install timestamp logging before any console output
+  installTimestampLogging();
+
   const config = loadConfig();
   const paths = getDaemonPaths();
   daemonMode = options.daemon ?? false;
