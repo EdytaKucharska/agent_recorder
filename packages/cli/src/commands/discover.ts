@@ -7,9 +7,7 @@ import * as os from "node:os";
 import {
   discoverAllConfigs,
   getServerType,
-  isRemoteUrl,
   loadConfig,
-  type ConfigSource,
   type McpServerConfig,
   type DiscoveryResult,
 } from "@agent-recorder/core";
