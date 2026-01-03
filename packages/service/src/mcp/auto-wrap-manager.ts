@@ -204,6 +204,21 @@ export class AutoWrapManager {
   }
 
   /**
+   * Check if a URL already points to the Agent Recorder proxy.
+   */
+  private isProxyUrl(urlString: string): boolean {
+    try {
+      const parsed = new URL(urlString);
+      const isLocalhost =
+        parsed.hostname === "127.0.0.1" || parsed.hostname === "localhost";
+      const isProxyPort = parsed.port === String(this.config.mcpProxyPort);
+      return isLocalhost && isProxyPort;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
    * Discover MCP servers from Claude config.
    */
   private async discoverServers(
@@ -242,6 +257,11 @@ export class AutoWrapManager {
 
       // URL-based server
       if (typeof serverEntry.url === "string") {
+        // Skip URLs that already point to the proxy (user manually configured)
+        if (this.isProxyUrl(serverEntry.url)) {
+          console.log(`[AutoWrap] Skipping "${key}" - already points to proxy`);
+          continue;
+        }
         url.set(key, serverEntry.url);
         continue;
       }
