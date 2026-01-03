@@ -88,6 +88,90 @@ See `docs/bootstrap.md` for full documentation.
 
 ---
 
+## MCP Server Support
+
+Agent Recorder works by proxying MCP traffic. It supports different server types:
+
+| Server Type | Support | Notes |
+|-------------|---------|-------|
+| **HTTP (local)** | ✅ Full | Servers running on localhost with `url` field |
+| **HTTP (remote)** | ✅ Full | Cloud-hosted servers like `https://mcp.amplitude.com/mcp` |
+| **Stdio** | ❌ v2 | Command-based servers (`command` + `args`) - coming in v2 |
+
+### Discovering Your MCP Servers
+
+Agent Recorder can discover MCP servers from multiple configuration sources:
+
+```bash
+# See all MCP servers across all config sources
+agent-recorder discover
+
+# Output includes:
+# - Claude Code (~/.claude/settings.json)
+# - Cursor IDE (~/.cursor/mcp.json)
+# - VS Code user settings
+# - Project-level configs (.claude/settings.json)
+```
+
+### Testing with Example MCP Servers
+
+**Built-in Mock Server:**
+```bash
+# Terminal 1: Start mock MCP server
+agent-recorder mock-mcp --port 9999
+
+# Terminal 2: Start Agent Recorder
+agent-recorder start
+```
+
+**Using Real MCP Servers:**
+```bash
+# Fetch server (no API key needed)
+npx -y @modelcontextprotocol/server-fetch
+
+# Configure in ~/.agent-recorder/providers.json:
+{
+  "version": 1,
+  "providers": [
+    { "id": "fetch", "type": "http", "url": "http://localhost:3001" }
+  ]
+}
+```
+
+**Remote MCP Servers (like Amplitude):**
+```json
+{
+  "version": 1,
+  "providers": [
+    {
+      "id": "amplitude",
+      "type": "http",
+      "url": "https://mcp.amplitude.com/mcp"
+    }
+  ]
+}
+```
+
+### Stdio Server Limitation
+
+Stdio-based MCP servers (configured with `command` instead of `url`) are **not yet supported** in v1. These servers communicate via stdin/stdout rather than HTTP, which requires a different proxying approach.
+
+**Examples of stdio servers that are NOT yet observable:**
+```json
+{
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/path/to/dir"]
+    }
+  }
+}
+```
+
+**Workaround:** If you need observability for a stdio server, check if an HTTP-based alternative exists, or wait for v2 which will include stdio support.
+
+---
+
 ## What it does _not_ do (by design)
 
 - ❌ No chain-of-thought or “reasoning” capture

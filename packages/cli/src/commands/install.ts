@@ -12,6 +12,11 @@ import {
   readProvidersFile,
   writeProvidersFile,
   getDefaultProvidersPath,
+  discoverAllConfigs,
+  getServerType,
+  type McpServerConfig,
+  type Provider,
+  type HttpProvider,
 } from "@agent-recorder/core";
 import {
   detectClaudeConfig,
@@ -112,6 +117,82 @@ Next steps:
 }
 
 /**
+ * Convert a discovered MCP server to a Provider.
+ */
+function serverToProvider(server: McpServerConfig): Provider | null {
+  const serverType = getServerType(server);
+
+  if (serverType === "stdio") {
+    // Stdio not supported yet - return null
+    return null;
+  }
+
+  if (server.url) {
+    const httpProvider: HttpProvider = {
+      id: server.key,
+      type: "http",
+      url: server.url,
+      ...(server.headers && { headers: server.headers }),
+    };
+    return httpProvider;
+  }
+
+  return null;
+}
+
+/**
+ * Import servers from non-Claude sources (Cursor, VS Code, project-level).
+ * Returns the list of providers that were imported.
+ */
+function importFromOtherSources(
+  providersPath: string
+): { imported: Provider[]; skipped: { key: string; reason: string }[] } {
+  const discovery = discoverAllConfigs();
+  const imported: Provider[] = [];
+  const skipped: { key: string; reason: string }[] = [];
+
+  // Get servers from non-Claude sources
+  const otherServers = discovery.allServers.filter(
+    (s) =>
+      s.source !== "claude-code-v2" &&
+      s.source !== "claude-code-legacy" &&
+      s.key !== "agent-recorder"
+  );
+
+  if (otherServers.length === 0) {
+    return { imported, skipped };
+  }
+
+  // Load existing providers
+  const existingProviders = readProvidersFile(providersPath);
+  const existingIds = new Set(existingProviders.providers.map((p) => p.id));
+
+  for (const server of otherServers) {
+    // Skip if already exists
+    if (existingIds.has(server.key)) {
+      skipped.push({ key: server.key, reason: "already exists" });
+      continue;
+    }
+
+    const provider = serverToProvider(server);
+    if (provider) {
+      imported.push(provider);
+      existingIds.add(provider.id); // Prevent duplicates in same batch
+    } else {
+      skipped.push({ key: server.key, reason: "stdio not supported" });
+    }
+  }
+
+  // Merge and write if we have new providers
+  if (imported.length > 0) {
+    const merged = mergeProviders(existingProviders, imported);
+    writeProvidersFile(merged, providersPath);
+  }
+
+  return { imported, skipped };
+}
+
+/**
  * Automatically configure Claude Code with hubify mode.
  * This is the equivalent of running: agent-recorder configure claude --hubify
  */
@@ -203,4 +284,29 @@ async function runAutoHubify(
   console.log(`Providers file: ${formatPath(providersPath)}`);
   console.log(`Total providers: ${mergedProviders.providers.length}`);
   console.log("");
+
+  // Also import from other sources (Cursor, VS Code, project-level)
+  const otherResult = importFromOtherSources(providersPath);
+
+  if (otherResult.imported.length > 0 || otherResult.skipped.length > 0) {
+    console.log("Additional sources discovered:");
+    console.log("------------------------------");
+
+    if (otherResult.imported.length > 0) {
+      console.log(`Imported ${otherResult.imported.length} server(s) from other configs:`);
+      for (const provider of otherResult.imported) {
+        if (provider.type === "http") {
+          console.log(`  ✓ ${provider.id}: ${provider.url}`);
+        }
+      }
+    }
+
+    if (otherResult.skipped.length > 0) {
+      console.log(`Skipped ${otherResult.skipped.length} server(s):`);
+      for (const { key, reason } of otherResult.skipped) {
+        console.log(`  ○ ${key}: ${reason}`);
+      }
+    }
+    console.log("");
+  }
 }
