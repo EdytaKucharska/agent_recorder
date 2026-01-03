@@ -1,3 +1,5 @@
+[![CI](https://github.com/EdytaKucharska/agent_recorder/actions/workflows/ci.yml/badge.svg)](https://github.com/EdytaKucharska/agent_recorder/actions/workflows/ci.yml)
+
 # Agent Recorder
 
 Agent Recorder captures a **persistent, human-readable timeline** of what Claude Code actually executed — including **subagents**, **skills**, and **MCP tool calls** — so developers can debug, audit, and trust agent behavior.
