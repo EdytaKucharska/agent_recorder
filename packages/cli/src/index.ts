@@ -34,6 +34,7 @@ import { configureWrapCommand } from "./commands/configure-wrap.js";
 import { diagnoseMcpCommand } from "./commands/diagnose.js";
 import { mockMcpCommand } from "./commands/mock-mcp.js";
 import { tuiCommand } from "./commands/tui.js";
+import { discoverCommand } from "./commands/discover.js";
 
 const program = new Command();
 
@@ -191,6 +192,16 @@ program
   .description("Check health and show config")
   .action(async () => {
     await doctorCommand();
+  });
+
+// Discover command
+program
+  .command("discover")
+  .description("Discover MCP servers from all config sources (Claude, Cursor, VS Code, project)")
+  .option("--json", "Output as JSON")
+  .option("-v, --verbose", "Show additional details")
+  .action(async (options) => {
+    await discoverCommand(options);
   });
 
 // TUI command
