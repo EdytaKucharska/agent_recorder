@@ -106,7 +106,8 @@ function buildForwardHeaders(
 ): Record<string, string> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    Accept: "application/json",
+    // Accept both JSON and SSE for MCP servers that use streaming (e.g., Figma)
+    Accept: "application/json, text/event-stream",
   };
 
   for (const [key, value] of Object.entries(requestHeaders)) {
@@ -175,7 +176,7 @@ async function fetchProviderTools(
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Accept: "application/json",
+        Accept: "application/json, text/event-stream",
         ...(provider.headers ?? {}),
       },
       body: JSON.stringify({
