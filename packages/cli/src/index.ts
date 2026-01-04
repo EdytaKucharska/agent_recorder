@@ -38,15 +38,28 @@ import { tuiCommand } from "./commands/tui.js";
 import { discoverCommand } from "./commands/discover.js";
 
 // Read version from package.json dynamically
-const require = createRequire(import.meta.url);
-const pkg = require("../package.json") as { version: string };
+// In dev: ../package.json (from dist/ to package root)
+// In bundled npm package: ./package.json (same directory)
+function getVersion(): string {
+  const require = createRequire(import.meta.url);
+  try {
+    // Try bundled path first (./package.json)
+    const pkg = require("./package.json") as { version: string };
+    return pkg.version;
+  } catch {
+    // Fall back to dev path (../package.json)
+    const pkg = require("../package.json") as { version: string };
+    return pkg.version;
+  }
+}
+const version = getVersion();
 
 const program = new Command();
 
 program
   .name("agent-recorder")
   .description("Local-first flight recorder for Claude Code")
-  .version(pkg.version);
+  .version(version);
 
 program
   .command("start")
