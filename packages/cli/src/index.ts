@@ -37,6 +37,11 @@ import { mockMcpCommand } from "./commands/mock-mcp.js";
 import { tuiCommand } from "./commands/tui.js";
 import { discoverCommand } from "./commands/discover.js";
 import { addCommand, removeCommand, listCommand } from "./commands/add.js";
+import {
+  upstreamAddCommand,
+  upstreamRemoveCommand,
+  upstreamListCommand,
+} from "./commands/upstream.js";
 
 // Read version from package.json dynamically
 // In dev: ../package.json (from dist/ to package root)
@@ -234,6 +239,39 @@ program
   .description("List all configured MCP providers")
   .action(async () => {
     await listCommand();
+  });
+
+// Upstream management commands (router mode with auth headers support)
+const upstream = program
+  .command("upstream")
+  .description("Manage upstreams for router mode (supports auth headers)");
+
+upstream
+  .command("add <name> <url>")
+  .description("Add an upstream with optional auth headers")
+  .option("-f, --force", "Overwrite if upstream exists")
+  .option(
+    "-H, --header <header>",
+    "Add header (e.g., 'Authorization: Bearer xxx')",
+    (value: string, previous: string[]) => previous.concat([value]),
+    [] as string[]
+  )
+  .action(async (name, url, options) => {
+    await upstreamAddCommand(name, url, options);
+  });
+
+upstream
+  .command("remove <name>")
+  .description("Remove an upstream")
+  .action(async (name) => {
+    await upstreamRemoveCommand(name);
+  });
+
+upstream
+  .command("list")
+  .description("List all configured upstreams")
+  .action(async () => {
+    await upstreamListCommand();
   });
 
 // Discover command
