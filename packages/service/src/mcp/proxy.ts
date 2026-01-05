@@ -572,12 +572,42 @@ export async function createMcpProxy(
 
     clearTimeout(timeoutId);
 
+    // Check response content type to handle SSE vs JSON
+    const contentType = downstreamResponse.headers.get("content-type") ?? "";
+    const isSSE = contentType.includes("text/event-stream");
+
     // Parse downstream response
     let responseBody: JsonRpcResponse;
     try {
-      responseBody = (await downstreamResponse.json()) as JsonRpcResponse;
-    } catch {
+      if (isSSE) {
+        // Handle SSE response - extract JSON from the stream
+        const text = await downstreamResponse.text();
+        // SSE format: "event: message\ndata: {...}\n\n"
+        // Extract the last complete JSON object from the data lines
+        const dataLines = text
+          .split("\n")
+          .filter((line) => line.startsWith("data: "))
+          .map((line) => line.slice(6)); // Remove "data: " prefix
+
+        if (dataLines.length === 0) {
+          throw new Error("No data in SSE response");
+        }
+
+        // Use the last data line (final response)
+        const lastData = dataLines[dataLines.length - 1];
+        responseBody = JSON.parse(lastData!) as JsonRpcResponse;
+      } else {
+        responseBody = (await downstreamResponse.json()) as JsonRpcResponse;
+      }
+    } catch (parseError) {
       console.error("Failed to parse downstream response");
+      if (debugProxy) {
+        console.error(
+          "  Parse error:",
+          parseError instanceof Error ? parseError.message : "Unknown"
+        );
+        console.error("  Content-Type:", contentType);
+      }
       return reply.code(502).send({
         jsonrpc: "2.0",
         error: {
