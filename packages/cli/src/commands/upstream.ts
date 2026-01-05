@@ -109,6 +109,16 @@ export async function upstreamAddCommand(
   console.log(
     `  2. Configure Claude Code to use: http://127.0.0.1:8788/?upstream=${name}`
   );
+  console.log("");
+  console.log(
+    "Note: Some MCP servers (e.g., Figma remote) only support OAuth authentication,"
+  );
+  console.log(
+    "      not Personal Access Tokens. For Figma, consider using the Desktop MCP"
+  );
+  console.log(
+    "      server (http://127.0.0.1:3845/mcp) or a third-party MCP like Figma-Context-MCP."
+  );
 }
 
 /**
@@ -191,4 +201,27 @@ export async function upstreamListCommand(): Promise<void> {
   console.log("");
   console.log("Usage in Claude Code:");
   console.log("  http://127.0.0.1:8788/?upstream=<name>");
+
+  // Check if any upstreams point to known OAuth-only servers
+  const oauthOnlyPatterns = ["mcp.figma.com"];
+  const oauthUpstreams = keys.filter((key) => {
+    const url = registry[key]?.url ?? "";
+    return oauthOnlyPatterns.some((pattern) => url.includes(pattern));
+  });
+
+  if (oauthUpstreams.length > 0) {
+    console.log("");
+    console.log("⚠ OAuth-only upstreams detected:");
+    for (const key of oauthUpstreams) {
+      console.log(`  - ${key}: Figma remote MCP only supports OAuth, not PATs`);
+    }
+    console.log("");
+    console.log("Alternatives for Figma:");
+    console.log(
+      "  - Desktop MCP server: http://127.0.0.1:3845/mcp (requires Figma app)"
+    );
+    console.log(
+      "  - Figma-Context-MCP: github.com/GLips/Figma-Context-MCP (supports PAT)"
+    );
+  }
 }

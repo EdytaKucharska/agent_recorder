@@ -585,6 +585,78 @@ export async function createMcpProxy(
 
     clearTimeout(timeoutId);
 
+    // Check for HTTP-level errors before parsing response body
+    if (!downstreamResponse.ok) {
+      const statusCode = downstreamResponse.status;
+      const statusText = downstreamResponse.statusText;
+
+      // Try to read response body for more details
+      let errorBody = "";
+      try {
+        errorBody = await downstreamResponse.text();
+      } catch {
+        // Ignore if we can't read body
+      }
+
+      // Log detailed error
+      console.error(`Downstream returned HTTP ${statusCode} ${statusText}`);
+      console.error(`  Target URL: ${finalDownstreamUrl}`);
+      console.error(`  Upstream key: ${finalUpstreamKey ?? "(legacy mode)"}`);
+      if (debugProxy && errorBody) {
+        console.error(`  Response body: ${errorBody.slice(0, 200)}`);
+      }
+
+      // Map HTTP status to user-friendly message
+      let userMessage: string;
+      let category: string;
+      if (statusCode === 401 || statusCode === 403) {
+        userMessage = `Authentication failed (HTTP ${statusCode}). The upstream server rejected the credentials.`;
+        category = "auth_error";
+        // Extra hint for common OAuth-only servers
+        console.error(
+          "  Note: Some MCP servers (e.g., Figma remote) only support OAuth, not Personal Access Tokens."
+        );
+      } else if (statusCode === 404) {
+        userMessage = `Upstream endpoint not found (HTTP ${statusCode}). Check the URL is correct.`;
+        category = "not_found";
+      } else if (statusCode >= 500) {
+        userMessage = `Upstream server error (HTTP ${statusCode} ${statusText})`;
+        category = "server_error";
+      } else {
+        userMessage = `Upstream returned HTTP ${statusCode} ${statusText}`;
+        category = "http_error";
+      }
+
+      // Record failed tool call if applicable
+      if (isToolCall && toolName && sessionId) {
+        const endedAt = new Date().toISOString();
+        recordToolCall({
+          db,
+          sessionId,
+          toolName,
+          mcpMethod: "tools/call",
+          upstreamKey: finalUpstreamKey,
+          input: toolInput,
+          output: { error: userMessage, httpStatus: statusCode },
+          status: "error",
+          startedAt,
+          endedAt,
+          redactKeys,
+          debugProxy,
+        });
+      }
+
+      return reply.code(502).send({
+        jsonrpc: "2.0",
+        error: {
+          code: -32000,
+          message: userMessage,
+          data: { category, httpStatus: statusCode },
+        },
+        id: body.id ?? null,
+      });
+    }
+
     // Check response content type to handle SSE vs JSON
     const contentType = downstreamResponse.headers.get("content-type") ?? "";
     const isSSE = contentType.includes("text/event-stream");
