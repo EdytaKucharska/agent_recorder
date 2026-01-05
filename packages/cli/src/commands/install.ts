@@ -102,17 +102,21 @@ export async function installCommand(
     console.log("  agent-recorder configure claude --hubify");
   }
 
-  // Print next steps
+  // Print next steps with clear quick-start
   console.log(`
 Agent Recorder installed!
 
-Data directory: ${dataDir}
-Env file: ${envFile}
+Quick start:
+  agent-recorder start --daemon   # Start recording
+  agent-recorder doctor           # Verify setup
+  # Restart Claude Code to apply changes
 
-Next steps:
-1. Edit ${envFile} if needed
-2. Start the daemon: agent-recorder start --env-file ${envFile}
-3. Restart Claude Code to apply changes
+Provider management:
+  agent-recorder list             # Show configured providers
+  agent-recorder add <name> <url> # Add an MCP server
+  agent-recorder remove <name>    # Remove a provider
+
+Data directory: ${dataDir}
 `);
 }
 

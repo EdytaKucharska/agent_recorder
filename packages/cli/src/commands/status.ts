@@ -7,6 +7,9 @@ import {
   getDaemonPaths,
   readPidFile,
   isProcessRunning,
+  readProvidersFile,
+  getDefaultProvidersPath,
+  type HttpProvider,
 } from "@agent-recorder/core";
 
 interface HealthResponse {
@@ -51,6 +54,37 @@ async function checkPort(
     });
     // For REST API, require 2xx. For MCP proxy, any response means reachable.
     return acceptAnyResponse || response.ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Check if a provider URL is reachable.
+ */
+async function checkProviderReachable(url: string): Promise<boolean> {
+  try {
+    // Send a minimal MCP initialize request to check connectivity
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json, text/event-stream",
+      },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 0,
+        method: "initialize",
+        params: {
+          protocolVersion: "2024-11-05",
+          capabilities: {},
+          clientInfo: { name: "agent-recorder-status", version: "1.0" },
+        },
+      }),
+      signal: AbortSignal.timeout(3000),
+    });
+    // Any response (even error) means the server is reachable
+    return response.status < 500;
   } catch {
     return false;
   }
@@ -126,6 +160,41 @@ export async function statusCommand(): Promise<void> {
   }
 
   console.log(`DB Path:      ${paths.dbFile}`);
+
+  // Show provider health
+  const providersFile = readProvidersFile(getDefaultProvidersPath());
+  const httpProviders = providersFile.providers.filter(
+    (p): p is HttpProvider => p.type === "http"
+  );
+
+  if (httpProviders.length > 0) {
+    console.log("");
+    console.log("Providers:");
+
+    // Check all providers in parallel
+    const results = await Promise.all(
+      httpProviders.map(async (p) => ({
+        id: p.id,
+        url: p.url,
+        reachable: await checkProviderReachable(p.url),
+      }))
+    );
+
+    let reachableCount = 0;
+    for (const result of results) {
+      const icon = result.reachable ? "✓" : "✗";
+      if (result.reachable) reachableCount++;
+      console.log(`  ${icon} ${result.id}`);
+    }
+
+    if (reachableCount < results.length) {
+      console.log("");
+      console.log(
+        `⚠ ${results.length - reachableCount}/${results.length} provider(s) unreachable`
+      );
+      console.log("  Run 'agent-recorder doctor' for details");
+    }
+  }
 
   // Show warnings
   if (!restApiReachable) {

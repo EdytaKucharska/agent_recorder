@@ -16,6 +16,8 @@ import {
   removePidFile,
   releaseLock,
   installTimestampLogging,
+  readProvidersFile,
+  getDefaultProvidersPath,
   type SessionStatus,
 } from "@agent-recorder/core";
 import { createServer, startServer } from "./server.js";
@@ -120,10 +122,23 @@ export async function startDaemon(
 
   // Always start MCP proxy (handles missing downstream with 503)
   console.log(`MCP proxy port: ${config.mcpProxyPort}`);
-  if (config.downstreamMcpUrl) {
-    console.log(`Downstream MCP: ${config.downstreamMcpUrl}`);
+
+  // Show mode status - hub mode takes precedence
+  const providersFile = readProvidersFile(getDefaultProvidersPath());
+  const httpProviders = providersFile.providers.filter(
+    (p) => p.type === "http"
+  );
+
+  if (httpProviders.length > 0) {
+    console.log(
+      `Hub mode: ${httpProviders.length} provider(s) [${httpProviders.map((p) => p.id).join(", ")}]`
+    );
+  } else if (config.downstreamMcpUrl) {
+    console.log(`Legacy mode: ${config.downstreamMcpUrl}`);
   } else {
-    console.log("Downstream MCP: not configured (POST / will return 503)");
+    console.log(
+      "No providers configured. Run 'agent-recorder install' to set up hub mode."
+    );
   }
 
   const proxy = await createMcpProxy({
