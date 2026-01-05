@@ -6,10 +6,15 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 
+/** Single upstream entry with optional auth headers */
+export interface UpstreamEntry {
+  url: string;
+  /** Optional headers to forward when proxying (e.g., Authorization) */
+  headers?: Record<string, string>;
+}
+
 export interface UpstreamsRegistry {
-  [serverKey: string]: {
-    url: string;
-  };
+  [serverKey: string]: UpstreamEntry;
 }
 
 /**

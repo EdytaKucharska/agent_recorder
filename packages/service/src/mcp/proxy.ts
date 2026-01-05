@@ -25,10 +25,14 @@ import { recordToolCall } from "./recorder.js";
 const DEFAULT_TIMEOUT_MS = 60_000;
 
 /** Upstreams registry shape */
+interface UpstreamEntry {
+  url: string;
+  /** Optional headers to forward when proxying (e.g., Authorization) */
+  headers?: Record<string, string>;
+}
+
 interface UpstreamsRegistry {
-  [serverKey: string]: {
-    url: string;
-  };
+  [serverKey: string]: UpstreamEntry;
 }
 
 /**
@@ -454,6 +458,7 @@ export async function createMcpProxy(
     }
 
     // Router mode: lookup upstream in registry
+    let upstreamHeaders: Record<string, string> | undefined;
     if (!finalDownstreamUrl && upstreamKeyStr) {
       const registry = loadUpstreamsRegistry(upstreamsPath);
       const upstream = registry[upstreamKeyStr];
@@ -470,6 +475,7 @@ export async function createMcpProxy(
       }
 
       finalDownstreamUrl = upstream.url;
+      upstreamHeaders = upstream.headers;
     }
 
     // Legacy mode: use configured downstream URL
@@ -493,6 +499,13 @@ export async function createMcpProxy(
     const forwardHeaders = buildForwardHeaders(
       request.headers as Record<string, string | string[] | undefined>
     );
+
+    // Merge upstream-configured headers (e.g., Authorization for OAuth)
+    if (upstreamHeaders) {
+      for (const [key, value] of Object.entries(upstreamHeaders)) {
+        forwardHeaders[key] = value;
+      }
+    }
 
     // Log routing decision if debug enabled
     if (debugProxy) {
