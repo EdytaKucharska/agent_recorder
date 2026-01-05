@@ -42,6 +42,11 @@ import {
   upstreamRemoveCommand,
   upstreamListCommand,
 } from "./commands/upstream.js";
+import {
+  hooksInstallCommand,
+  hooksUninstallCommand,
+  hooksStatusCommand,
+} from "./commands/hooks.js";
 
 // Read version from package.json dynamically
 // In dev: ../package.json (from dist/ to package root)
@@ -216,6 +221,32 @@ program
   .description("Check health and show config")
   .action(async () => {
     await doctorCommand();
+  });
+
+// Hooks command group (v2 - recommended)
+const hooks = program
+  .command("hooks")
+  .description("Manage Claude Code hooks (v2 - recommended)");
+
+hooks
+  .command("install")
+  .description("Install Agent Recorder hooks into Claude Code")
+  .action(async () => {
+    await hooksInstallCommand();
+  });
+
+hooks
+  .command("uninstall")
+  .description("Remove Agent Recorder hooks from Claude Code")
+  .action(async () => {
+    await hooksUninstallCommand();
+  });
+
+hooks
+  .command("status")
+  .description("Show hook installation status")
+  .action(async () => {
+    await hooksStatusCommand();
   });
 
 // Provider management commands (simple hub mode configuration)
