@@ -8,10 +8,12 @@ import type Database from "better-sqlite3";
 import { registerHealthRoutes } from "./routes/health.js";
 import { registerSessionsRoutes } from "./routes/sessions.js";
 import { registerEventsRoutes } from "./routes/events.js";
+import { registerHooksRoutes } from "./routes/hooks.js";
 
 export interface CreateServerOptions {
   db: Database.Database;
   currentSessionId?: string | null;
+  debug?: boolean;
 }
 
 /**
@@ -20,7 +22,7 @@ export interface CreateServerOptions {
 export async function createServer(
   options: CreateServerOptions
 ): Promise<FastifyInstance> {
-  const { db, currentSessionId } = options;
+  const { db, currentSessionId, debug } = options;
 
   const app = Fastify({
     logger: true,
@@ -33,6 +35,7 @@ export async function createServer(
     currentSessionId: currentSessionId ?? null,
   });
   await registerEventsRoutes(app, { db });
+  await registerHooksRoutes(app, { db, debug: debug ?? false });
 
   return app;
 }

@@ -90,6 +90,16 @@ importers:
         specifier: ^22.0.0
         version: 22.19.3
 
+  packages/hooks:
+    dependencies:
+      '@agent-recorder/core':
+        specifier: workspace:*
+        version: link:../core
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.19.3
+
   packages/service:
     dependencies:
       '@agent-recorder/core':

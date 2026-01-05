@@ -8,6 +8,24 @@ Agent Recorder is designed to be **calm infrastructure**, not a chatbot.
 
 ---
 
+> ## ⚠️ Architecture Pivot Notice (v2)
+>
+> **v1 (proxy-based)** has significant limitations. After extensive testing, we discovered:
+>
+> | Constraint | Impact |
+> |------------|--------|
+> | **~80% of MCP servers use stdio** | Cannot be proxied (subprocess communication) |
+> | **OAuth-protected servers** | Figma, Amplitude, Notion — tokens managed internally by Claude Code |
+> | **Only works for** | Self-hosted HTTP servers or rare static-API-key servers |
+>
+> **v2 (hooks-based)** uses Claude Code's native hooks system to capture ALL tool calls regardless of transport.
+>
+> See [docs/article-mcp-observability-constraints.md](docs/article-mcp-observability-constraints.md) for the full technical writeup.
+>
+> **Current status:** v1 proxy code is deprecated. v2 hooks implementation in progress.
+
+---
+
 ## What it is (explicit)
 
 Agent Recorder is a **Node.js + TypeScript** project that ships as:
@@ -90,89 +108,48 @@ See `docs/bootstrap.md` for full documentation.
 
 ## MCP Server Support
 
-Agent Recorder works by proxying MCP traffic. It supports different server types:
+### v2 (Hooks-Based) — Recommended
 
-| Server Type       | Support | Notes                                                     |
-| ----------------- | ------- | --------------------------------------------------------- |
-| **HTTP (local)**  | ✅ Full | Servers running on localhost with `url` field             |
-| **HTTP (remote)** | ✅ Full | Cloud-hosted servers like `https://mcp.amplitude.com/mcp` |
-| **Stdio**         | ❌ v2   | Command-based servers (`command` + `args`) - coming in v2 |
+v2 uses Claude Code's native hooks system. **All tool calls are captured regardless of transport:**
 
-### Discovering Your MCP Servers
-
-Agent Recorder can discover MCP servers from multiple configuration sources:
-
-```bash
-# See all MCP servers across all config sources
-agent-recorder discover
-
-# Output includes:
-# - Claude Code (~/.claude/settings.json)
-# - Cursor IDE (~/.cursor/mcp.json)
-# - VS Code user settings
-# - Project-level configs (.claude/settings.json)
-```
-
-### Testing with Example MCP Servers
-
-**Built-in Mock Server:**
+| Server Type | Support | Notes |
+|-------------|---------|-------|
+| **stdio** | ✅ Full | npx/uvx servers, filesystem, git, etc. |
+| **HTTP (local)** | ✅ Full | Servers running on localhost |
+| **HTTP (remote)** | ✅ Full | Figma, Amplitude, Notion — even OAuth! |
+| **Built-in tools** | ✅ Full | Bash, Read, Write, Edit, Glob, Grep |
 
 ```bash
-# Terminal 1: Start mock MCP server
-agent-recorder mock-mcp --port 9999
+# Install hooks into Claude Code
+agent-recorder install
 
-# Terminal 2: Start Agent Recorder
+# Start the service (receives hook data)
 agent-recorder start
+
+# Open the UI
+agent-recorder open
 ```
 
-**Using Real MCP Servers:**
+### v1 (Proxy-Based) — Deprecated
 
-```bash
-# Fetch server (no API key needed)
-npx -y @modelcontextprotocol/server-fetch
+<details>
+<summary>v1 proxy approach (click to expand)</summary>
 
-# Configure in ~/.agent-recorder/providers.json:
-{
-  "version": 1,
-  "providers": [
-    { "id": "fetch", "type": "http", "url": "http://localhost:3001" }
-  ]
-}
-```
+v1 worked by proxying MCP traffic. It only supported HTTP servers with static auth:
 
-**Remote MCP Servers (like Amplitude):**
+| Server Type | Support | Notes |
+|-------------|---------|-------|
+| **HTTP (local)** | ⚠️ Limited | Only non-OAuth servers |
+| **HTTP (remote)** | ⚠️ Limited | Only servers accepting API keys (rare) |
+| **Stdio** | ❌ None | Cannot proxy subprocess communication |
+| **OAuth servers** | ❌ None | Figma, Amplitude, Notion — tokens managed by Claude |
 
-```json
-{
-  "version": 1,
-  "providers": [
-    {
-      "id": "amplitude",
-      "type": "http",
-      "url": "https://mcp.amplitude.com/mcp"
-    }
-  ]
-}
-```
+**Why v1 doesn't work for most servers:**
+- ~80% of MCP servers use stdio transport (not HTTP)
+- OAuth-protected servers don't expose tokens to proxies
+- Claude Code manages auth internally
 
-### Stdio Server Limitation
-
-Stdio-based MCP servers (configured with `command` instead of `url`) are **not yet supported** in v1. These servers communicate via stdin/stdout rather than HTTP, which requires a different proxying approach.
-
-**Examples of stdio servers that are NOT yet observable:**
-
-```json
-{
-  "mcpServers": {
-    "filesystem": {
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/path/to/dir"]
-    }
-  }
-}
-```
-
-**Workaround:** If you need observability for a stdio server, check if an HTTP-based alternative exists, or wait for v2 which will include stdio support.
+</details>
 
 ---
 
