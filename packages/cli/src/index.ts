@@ -36,6 +36,11 @@ import { diagnoseMcpCommand } from "./commands/diagnose.js";
 import { mockMcpCommand } from "./commands/mock-mcp.js";
 import { tuiCommand } from "./commands/tui.js";
 import { discoverCommand } from "./commands/discover.js";
+import {
+  addCommand,
+  removeCommand,
+  listCommand,
+} from "./commands/add.js";
 
 // Read version from package.json dynamically
 // In dev: ../package.json (from dist/ to package root)
@@ -210,6 +215,29 @@ program
   .description("Check health and show config")
   .action(async () => {
     await doctorCommand();
+  });
+
+// Provider management commands (simple hub mode configuration)
+program
+  .command("add <name> <url>")
+  .description("Add an MCP provider to hub mode")
+  .option("-f, --force", "Overwrite if provider exists")
+  .action(async (name, url, options) => {
+    await addCommand(name, url, options);
+  });
+
+program
+  .command("remove <name>")
+  .description("Remove an MCP provider from hub mode")
+  .action(async (name) => {
+    await removeCommand(name);
+  });
+
+program
+  .command("list")
+  .description("List all configured MCP providers")
+  .action(async () => {
+    await listCommand();
   });
 
 // Discover command
