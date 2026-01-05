@@ -125,7 +125,9 @@ export async function startDaemon(
 
   // Show mode status - hub mode takes precedence
   const providersFile = readProvidersFile(getDefaultProvidersPath());
-  const httpProviders = providersFile.providers.filter((p) => p.type === "http");
+  const httpProviders = providersFile.providers.filter(
+    (p) => p.type === "http"
+  );
 
   if (httpProviders.length > 0) {
     console.log(

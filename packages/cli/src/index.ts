@@ -36,11 +36,7 @@ import { diagnoseMcpCommand } from "./commands/diagnose.js";
 import { mockMcpCommand } from "./commands/mock-mcp.js";
 import { tuiCommand } from "./commands/tui.js";
 import { discoverCommand } from "./commands/discover.js";
-import {
-  addCommand,
-  removeCommand,
-  listCommand,
-} from "./commands/add.js";
+import { addCommand, removeCommand, listCommand } from "./commands/add.js";
 
 // Read version from package.json dynamically
 // In dev: ../package.json (from dist/ to package root)
