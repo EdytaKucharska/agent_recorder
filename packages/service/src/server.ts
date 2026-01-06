@@ -9,6 +9,7 @@ import { registerHealthRoutes } from "./routes/health.js";
 import { registerSessionsRoutes } from "./routes/sessions.js";
 import { registerEventsRoutes } from "./routes/events.js";
 import { registerHooksRoutes } from "./routes/hooks.js";
+import { registerStdioRoutes } from "./routes/stdio.js";
 
 export interface CreateServerOptions {
   db: Database.Database;
@@ -36,6 +37,7 @@ export async function createServer(
   });
   await registerEventsRoutes(app, { db });
   await registerHooksRoutes(app, { db, debug: debug ?? false });
+  await registerStdioRoutes(app, { db, debug: debug ?? false });
 
   return app;
 }

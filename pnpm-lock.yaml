@@ -116,6 +116,16 @@ importers:
         specifier: ^7.6.12
         version: 7.6.13
 
+  packages/stdio-proxy:
+    dependencies:
+      '@agent-recorder/core':
+        specifier: workspace:*
+        version: link:../core
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.19.3
+
   packages/ui:
     dependencies:
       '@agent-recorder/core':
