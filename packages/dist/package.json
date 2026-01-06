@@ -1,10 +1,12 @@
 {
   "name": "agent-recorder",
-  "version": "1.0.10",
+  "version": "2.0.0",
   "description": "Local-first flight recorder for Claude Code",
   "type": "module",
   "bin": {
-    "agent-recorder": "./dist/index.js"
+    "agent-recorder": "./dist/index.js",
+    "agent-recorder-hook": "./vendor/node_modules/@agent-recorder/hooks/handler.js",
+    "agent-recorder-proxy": "./vendor/node_modules/@agent-recorder/stdio-proxy/cli.js"
   },
   "exports": {
     ".": {
