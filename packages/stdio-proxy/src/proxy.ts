@@ -17,7 +17,7 @@
 
 import { spawn, type ChildProcess } from "node:child_process";
 import { createWriteStream, type WriteStream } from "node:fs";
-import { createInterface, type Interface } from "node:readline";
+import { createInterface } from "node:readline";
 import type {
   ProxyOptions,
   ProxyState,
