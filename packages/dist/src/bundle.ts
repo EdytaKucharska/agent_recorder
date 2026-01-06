@@ -34,6 +34,14 @@ const packages: PackageConfig[] = [
     name: "@agent-recorder/cli",
     srcDir: "cli",
   },
+  {
+    name: "@agent-recorder/hooks",
+    srcDir: "hooks",
+  },
+  {
+    name: "@agent-recorder/stdio-proxy",
+    srcDir: "stdio-proxy",
+  },
 ];
 
 /**

@@ -1,6 +1,6 @@
 # Why Proxying MCP Traffic Is Harder Than You Think: Lessons from Building an Observability Tool for Claude Code
 
-*A technical deep-dive into the constraints of MCP observability and why we pivoted from proxy-based to hooks-based monitoring.*
+_A technical deep-dive into the constraints of MCP observability and why we pivoted from proxy-based to hooks-based monitoring._
 
 ---
 
@@ -30,11 +30,11 @@ MCP (Model Context Protocol) defines a standard for AI agents to communicate wit
 
 **The vast majority of MCP servers use stdio transport, not HTTP.**
 
-| Transport | How It Works | Proxy-able? |
-|-----------|--------------|-------------|
-| **stdio** | Local subprocess via stdin/stdout | ❌ No |
-| **HTTP/SSE** | Remote HTTP endpoints | ✅ Yes |
-| **Streamable HTTP** | Modern remote standard | ✅ Yes |
+| Transport           | How It Works                      | Proxy-able? |
+| ------------------- | --------------------------------- | ----------- |
+| **stdio**           | Local subprocess via stdin/stdout | ❌ No       |
+| **HTTP/SSE**        | Remote HTTP endpoints             | ✅ Yes      |
+| **Streamable HTTP** | Modern remote standard            | ✅ Yes      |
 
 When you configure an MCP server like this:
 
@@ -85,11 +85,11 @@ When connecting to Figma's MCP server, this happens:
 
 We tested this with multiple providers:
 
-| Provider | Transport | Auth Method | Proxy Works? |
-|----------|-----------|-------------|--------------|
-| Figma | HTTP | OAuth 2.0 | ❌ No |
-| Amplitude | HTTP | OAuth 2.0 | ❌ No |
-| Notion | HTTP | OAuth 2.0 | ❌ No |
+| Provider  | Transport | Auth Method | Proxy Works? |
+| --------- | --------- | ----------- | ------------ |
+| Figma     | HTTP      | OAuth 2.0   | ❌ No        |
+| Amplitude | HTTP      | OAuth 2.0   | ❌ No        |
+| Notion    | HTTP      | OAuth 2.0   | ❌ No        |
 
 We even tried using Figma Personal Access Tokens (PATs) as a workaround. The result:
 
@@ -158,6 +158,7 @@ data: {"jsonrpc":"2.0","result":{"content":[...]},"id":2}
 ```
 
 Different servers implement SSE differently:
+
 - Some send multiple `data:` lines per event
 - Some include `event:` prefixes, some don't
 - Some stream incrementally, some batch
@@ -191,25 +192,29 @@ Claude Code provides a native hooks system that fires at lifecycle events:
 ```json
 {
   "hooks": {
-    "PostToolUse": [{
-      "matcher": "*",
-      "hooks": [{
-        "type": "command",
-        "command": "/path/to/record-tool.sh"
-      }]
-    }]
+    "PostToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/path/to/record-tool.sh"
+          }
+        ]
+      }
+    ]
   }
 }
 ```
 
 ### What Hooks Capture
 
-| Hook | Trigger | Data Available |
-|------|---------|----------------|
-| PreToolUse | Before ANY tool | tool_name, tool_input |
-| PostToolUse | After ANY tool | tool_name, tool_input, tool_response |
-| Stop | Agent completes | Full transcript |
-| SessionStart/End | Session lifecycle | Statistics |
+| Hook             | Trigger           | Data Available                       |
+| ---------------- | ----------------- | ------------------------------------ |
+| PreToolUse       | Before ANY tool   | tool_name, tool_input                |
+| PostToolUse      | After ANY tool    | tool_name, tool_input, tool_response |
+| Stop             | Agent completes   | Full transcript                      |
+| SessionStart/End | Session lifecycle | Statistics                           |
 
 ### Why Hooks Work
 
@@ -256,4 +261,4 @@ The MCP ecosystem is young. As it matures, we may see standardized observability
 
 ---
 
-*This article documents our experience building [agent-recorder](https://github.com/EdytaKucharska/agent_recorder), an observability tool for Claude Code. We pivoted from proxy-based to hooks-based monitoring after discovering the constraints described above.*
+_This article documents our experience building [agent-recorder](https://github.com/EdytaKucharska/agent_recorder), an observability tool for Claude Code. We pivoted from proxy-based to hooks-based monitoring after discovering the constraints described above._

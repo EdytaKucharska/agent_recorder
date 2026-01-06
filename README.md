@@ -12,11 +12,11 @@ Agent Recorder is designed to be **calm infrastructure**, not a chatbot.
 >
 > **v1 (proxy-based)** has significant limitations. After extensive testing, we discovered:
 >
-> | Constraint | Impact |
-> |------------|--------|
-> | **~80% of MCP servers use stdio** | Cannot be proxied (subprocess communication) |
-> | **OAuth-protected servers** | Figma, Amplitude, Notion — tokens managed internally by Claude Code |
-> | **Only works for** | Self-hosted HTTP servers or rare static-API-key servers |
+> | Constraint                        | Impact                                                              |
+> | --------------------------------- | ------------------------------------------------------------------- |
+> | **~80% of MCP servers use stdio** | Cannot be proxied (subprocess communication)                        |
+> | **OAuth-protected servers**       | Figma, Amplitude, Notion — tokens managed internally by Claude Code |
+> | **Only works for**                | Self-hosted HTTP servers or rare static-API-key servers             |
 >
 > **v2 (hooks-based)** uses Claude Code's native hooks system to capture ALL tool calls regardless of transport.
 >
@@ -112,12 +112,12 @@ See `docs/bootstrap.md` for full documentation.
 
 v2 uses Claude Code's native hooks system. **All tool calls are captured regardless of transport:**
 
-| Server Type | Support | Notes |
-|-------------|---------|-------|
-| **stdio** | ✅ Full | npx/uvx servers, filesystem, git, etc. |
-| **HTTP (local)** | ✅ Full | Servers running on localhost |
-| **HTTP (remote)** | ✅ Full | Figma, Amplitude, Notion — even OAuth! |
-| **Built-in tools** | ✅ Full | Bash, Read, Write, Edit, Glob, Grep |
+| Server Type        | Support | Notes                                  |
+| ------------------ | ------- | -------------------------------------- |
+| **stdio**          | ✅ Full | npx/uvx servers, filesystem, git, etc. |
+| **HTTP (local)**   | ✅ Full | Servers running on localhost           |
+| **HTTP (remote)**  | ✅ Full | Figma, Amplitude, Notion — even OAuth! |
+| **Built-in tools** | ✅ Full | Bash, Read, Write, Edit, Glob, Grep    |
 
 ```bash
 # Install hooks into Claude Code
@@ -137,14 +137,15 @@ agent-recorder open
 
 v1 worked by proxying MCP traffic. It only supported HTTP servers with static auth:
 
-| Server Type | Support | Notes |
-|-------------|---------|-------|
-| **HTTP (local)** | ⚠️ Limited | Only non-OAuth servers |
-| **HTTP (remote)** | ⚠️ Limited | Only servers accepting API keys (rare) |
-| **Stdio** | ❌ None | Cannot proxy subprocess communication |
-| **OAuth servers** | ❌ None | Figma, Amplitude, Notion — tokens managed by Claude |
+| Server Type       | Support    | Notes                                               |
+| ----------------- | ---------- | --------------------------------------------------- |
+| **HTTP (local)**  | ⚠️ Limited | Only non-OAuth servers                              |
+| **HTTP (remote)** | ⚠️ Limited | Only servers accepting API keys (rare)              |
+| **Stdio**         | ❌ None    | Cannot proxy subprocess communication               |
+| **OAuth servers** | ❌ None    | Figma, Amplitude, Notion — tokens managed by Claude |
 
 **Why v1 doesn't work for most servers:**
+
 - ~80% of MCP servers use stdio transport (not HTTP)
 - OAuth-protected servers don't expose tokens to proxies
 - Claude Code manages auth internally
