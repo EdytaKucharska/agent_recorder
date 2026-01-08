@@ -91,11 +91,24 @@ function rewriteExports(
 }
 
 /**
+ * Get the version from dist's package.json.
+ */
+function getDistVersion(): string {
+  const distPkgPath = path.join(distRoot, "package.json");
+  const distPkg = JSON.parse(fs.readFileSync(distPkgPath, "utf-8")) as {
+    version: string;
+  };
+  return distPkg.version;
+}
+
+/**
  * Create a minimal package.json for the vendored package.
+ * Uses the dist package version for consistency.
  */
 function createVendorPackageJson(
   srcPkgPath: string,
-  destPkgPath: string
+  destPkgPath: string,
+  distVersion: string
 ): void {
   const srcPkg = JSON.parse(fs.readFileSync(srcPkgPath, "utf-8")) as {
     name: string;
@@ -107,9 +120,10 @@ function createVendorPackageJson(
 
   // Create minimal package.json with only what's needed for module resolution
   // Rewrite exports to point to root (since we copy dist/ contents to package root)
+  // Use dist version for consistency across all vendored packages
   const vendorPkg = {
     name: srcPkg.name,
-    version: srcPkg.version,
+    version: distVersion,
     type: srcPkg.type ?? "module",
     exports: rewriteExports(srcPkg.exports),
     // Rewrite workspace:* dependencies to point to sibling vendor packages
@@ -128,6 +142,7 @@ function createVendorPackageJson(
  */
 function bundle(): void {
   const vendorRoot = path.join(distRoot, "vendor", "node_modules");
+  const distVersion = getDistVersion();
 
   // Clean vendor directory
   if (fs.existsSync(vendorRoot)) {
@@ -135,7 +150,7 @@ function bundle(): void {
   }
   fs.mkdirSync(vendorRoot, { recursive: true });
 
-  console.log("Bundling packages into vendor/...");
+  console.log(`Bundling packages into vendor/ (version ${distVersion})...`);
 
   for (const pkg of packages) {
     const srcPkgDir = path.join(packagesRoot, pkg.srcDir);
@@ -168,8 +183,8 @@ function bundle(): void {
       }
     }
 
-    // Create vendor package.json
-    createVendorPackageJson(srcPkgJson, path.join(destPkgDir, "package.json"));
+    // Create vendor package.json with dist version
+    createVendorPackageJson(srcPkgJson, path.join(destPkgDir, "package.json"), distVersion);
   }
 
   console.log("Bundle complete!");
