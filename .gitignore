@@ -44,3 +44,4 @@ Thumbs.db
 # Claude / agent output (optional)
 .claude/local/
 .claude/cache/
+*.tgz
