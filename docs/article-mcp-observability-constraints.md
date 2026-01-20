@@ -1,42 +1,45 @@
-# Why Proxying MCP Traffic Is Harder Than You Think: Lessons from Building an Observability Tool for Claude Code
+# Why Proxying MCP Traffic Is Harder Than You Think
 
-*A technical deep-dive into the constraints of MCP observability and why we pivoted from proxy-based to hooks-based monitoring.*
+*Lessons from building an observability tool for Claude Code—and why we pivoted from proxy-based to hooks-based monitoring in just a few days.*
 
 ---
 
-## The Problem We Tried to Solve
+## TL;DR
 
-As AI coding agents become mainstream, observability becomes critical. We wanted to answer simple questions:
+We tried to build an HTTP proxy for MCP observability. It doesn't work for most real-world MCP servers because: (1) most use stdio transport (local subprocesses, no network traffic), (2) remote servers use OAuth tokens that Claude manages internally, and (3) stdio interception alternatives are too fragile. The solution: use Claude Code's native hooks system instead.
+
+---
+
+## The Problem
+
+As AI coding agents become mainstream, observability matters. We wanted to answer:
 
 - What tools did Claude Code use during this session?
 - How long did each MCP call take?
-- What data flowed between Claude and external services?
+- What data flowed to external services?
 
-Our approach seemed straightforward: build an HTTP proxy that sits between Claude Code and MCP servers, recording all traffic. Simple, right?
+Our approach: an HTTP proxy between Claude Code and MCP servers. Record everything.
 
-**Wrong.**
+```
+┌──────────────┐      ┌─────────────┐      ┌────────────┐
+│  Claude Code │ ───► │   Proxy     │ ───► │ MCP Server │
+└──────────────┘      │  (recorder) │      └────────────┘
+                      └─────────────┘
+```
 
-After weeks of development and real-world testing, we discovered fundamental architectural constraints that made our proxy approach viable for only a tiny fraction of MCP servers. This article documents what we learned.
+After a few days of development and testing, we discovered this approach works for almost nothing in the real MCP ecosystem.
 
 ---
 
-## Constraint 1: The stdio Transport Dominance
+## Constraint 1: stdio Transport Dominance
 
 ### What We Expected
 
-MCP (Model Context Protocol) defines a standard for AI agents to communicate with external tools. We assumed most MCP servers would use HTTP—after all, that's how modern APIs work.
+MCP servers would use HTTP—that's how modern APIs work.
 
 ### What We Found
 
-**The vast majority of MCP servers use stdio transport, not HTTP.**
-
-| Transport | How It Works | Proxy-able? |
-|-----------|--------------|-------------|
-| **stdio** | Local subprocess via stdin/stdout | ❌ No |
-| **HTTP/SSE** | Remote HTTP endpoints | ✅ Yes |
-| **Streamable HTTP** | Modern remote standard | ✅ Yes |
-
-When you configure an MCP server like this:
+Most MCP servers use **stdio transport**: local subprocesses communicating via stdin/stdout.
 
 ```json
 {
@@ -49,144 +52,152 @@ When you configure an MCP server like this:
 }
 ```
 
-Claude Code spawns a subprocess and communicates via stdin/stdout. There's no network traffic to intercept. The communication happens entirely within process streams.
+Claude Code spawns this as a child process. Communication happens through process streams—no network traffic to intercept.
+
+```
+┌──────────────┐      stdin/stdout      ┌────────────────┐
+│  Claude Code │ ◄──────────────────►   │ MCP subprocess │
+└──────────────┘     (no network!)      └────────────────┘
+```
 
 ### Why stdio Dominates
 
-1. **Zero network overhead** - Direct process communication is faster
-2. **Implicit security** - User launched both client and server
-3. **Secrets stay local** - Environment variables never leave the machine
-4. **npx/uvx convenience** - No installation required, just run
+| Reason | Explanation |
+|--------|-------------|
+| Zero network overhead | Direct process communication |
+| Implicit security | User launched both client and server |
+| Secrets stay local | Env vars never leave the machine |
+| npx/uvx convenience | No installation, just run |
 
-The MCP ecosystem evolved around local-first tooling. By the time we built our proxy, the battle was already lost—most servers were stdio-only.
+The MCP ecosystem evolved around local-first tooling. By the time we built our proxy, most servers were stdio-only.
 
 ---
 
-## Constraint 2: The OAuth Authentication Wall
+## Constraint 2: Why We Didn't Intercept stdio
 
-### What We Expected
+"Just intercept stdin/stdout" sounds easy. We considered several approaches:
 
-For HTTP-based MCP servers (like Figma, Amplitude, Notion), we could configure our proxy as the endpoint and forward requests with the user's credentials.
+### Wrapper Scripts
 
-### What We Found
+Wrap the MCP command to tee stdin/stdout to a recorder:
 
-**Most remote MCP servers use OAuth 2.0, and Claude Code manages tokens internally.**
+```bash
+#!/bin/bash
+exec npx ... | tee /tmp/mcp.log
+```
 
-When connecting to Figma's MCP server, this happens:
+**Problems:**
+- Bidirectional streams are tricky—stdin and stdout are separate
+- Buffering issues corrupt JSON-RPC message boundaries
+- Every MCP server needs a custom wrapper
+- User has to modify their config for every server
+
+### LD_PRELOAD Interception (Linux)
+
+Inject a shared library to intercept read()/write() calls:
+
+```bash
+LD_PRELOAD=/path/to/intercept.so npx ...
+```
+
+**Problems:**
+- Linux-only (no macOS support without different techniques)
+- Breaks with statically linked binaries
+- Security tools may flag it as suspicious
+- Fragile across Node.js versions
+
+### ptrace-based Monitoring
+
+Attach a debugger to trace syscalls:
+
+```bash
+strace -f -e read,write npx ...
+```
+
+**Problems:**
+- Significant performance overhead
+- Platform-specific (ptrace on Linux, dtrace on macOS)
+- Requires elevated permissions on some systems
+- Output parsing is complex
+
+### Our Conclusion
+
+All stdio interception approaches share the same problem: **fragility**. They work until they don't, and debugging failures is painful. For a developer tool, reliability matters more than coverage.
+
+---
+
+## Constraint 3: The OAuth Wall
+
+For HTTP-based MCP servers (Figma, Notion, Amplitude), we assumed we could proxy requests by forwarding credentials.
+
+### What Actually Happens
 
 ```
-1. Claude Code → Figma OAuth → Browser consent screen
+1. Claude Code → Figma OAuth → Browser consent
 2. User clicks "Authorize"
-3. Figma redirects to localhost:XXXXX/callback?code=...
+3. Figma redirects to localhost callback
 4. Claude Code exchanges code for tokens
 5. Claude Code stores tokens internally
-6. Tokens are NEVER exposed in request headers
+6. Tokens are NEVER exposed in config or headers
 ```
 
-We tested this with multiple providers:
-
-| Provider | Transport | Auth Method | Proxy Works? |
-|----------|-----------|-------------|--------------|
-| Figma | HTTP | OAuth 2.0 | ❌ No |
-| Amplitude | HTTP | OAuth 2.0 | ❌ No |
-| Notion | HTTP | OAuth 2.0 | ❌ No |
-
-We even tried using Figma Personal Access Tokens (PATs) as a workaround. The result:
+We tested with personal access tokens as a workaround:
 
 ```bash
 curl -X POST https://mcp.figma.com/mcp \
   -H "Authorization: Bearer figd_xxx..." \
-  -H "Content-Type: application/json" \
   -d '{"jsonrpc":"2.0","method":"initialize","id":1}'
 
 # Response: Unauthorized
 ```
 
-Figma's MCP endpoint only accepts OAuth tokens—PATs don't work. This is a deliberate security design, but it completely blocks proxy-based observability.
+Figma's MCP endpoint only accepts OAuth tokens—PATs don't work. This is intentional security design.
 
-### The Token Lifecycle Problem
+| Provider | Auth Method | Proxy Works? |
+|----------|-------------|--------------|
+| Figma | OAuth 2.0 | No |
+| Notion | OAuth 2.0 | No |
+| Amplitude | OAuth 2.0 | No |
 
-Even if we could intercept the initial OAuth flow, tokens expire and refresh. Claude Code handles this automatically. A proxy would need to:
-
-1. Intercept the initial OAuth callback
-2. Store refresh tokens securely
-3. Handle token refresh transparently
-4. Sync state with Claude Code's internal token store
-
-This is architecturally complex and security-sensitive—essentially rebuilding Claude Code's auth system.
+Even if we intercepted the OAuth flow, tokens expire and refresh. Claude Code handles this automatically. Replicating that auth system would be complex and security-sensitive.
 
 ---
 
-## Constraint 3: Configuration Complexity
+## Constraint 4: Configuration Complexity
 
-### Multiple Config Files
+Claude Code uses multiple config files with precedence rules:
 
-Claude Code uses multiple configuration files:
+| Location | Scope | Priority |
+|----------|-------|----------|
+| `~/.claude/settings.json` | Global (v2) | Lower |
+| `~/.config/claude/mcp.json` | Global (legacy) | Lower |
+| `.claude/settings.json` | Project-level | Higher |
 
-- `~/.claude/settings.json` - Global settings
-- `~/.claude.json` - Project-level settings (higher priority)
-- MCP server configs can exist in either
+When a user configures an MCP server in the project-level file, it overrides global settings. Our proxy setup in the global config was silently ignored for projects with local configs.
 
-When a user configures an MCP server in the project file, it bypasses global settings entirely. Our proxy setup in the global config was silently ignored.
-
-### The "It Works on My Machine" Problem
-
-During testing, we encountered:
-
-- Proxy worked for some MCP servers, not others (transport differences)
-- Same server worked in one project, failed in another (config precedence)
-- OAuth servers showed no errors—just silent auth failures
-
-Debugging required understanding Claude Code's config resolution, MCP transport selection, and OAuth state management simultaneously.
+Debugging required understanding config resolution, transport selection, and OAuth state simultaneously.
 
 ---
 
-## Constraint 4: SSE Response Parsing
+## What Actually Works
 
-Even when we could reach HTTP MCP servers, response parsing proved tricky.
+After all testing, our proxy approach reliably monitors:
 
-### The Problem
+**Works:**
+- Self-hosted MCP servers (you control auth)
+- Servers with static API keys (rare)
+- Internal/enterprise servers
 
-MCP over HTTP uses Server-Sent Events (SSE) for streaming responses:
-
-```
-event: message
-data: {"jsonrpc":"2.0","result":{"tools":[...]},"id":1}
-
-event: message
-data: {"jsonrpc":"2.0","result":{"content":[...]},"id":2}
-```
-
-Different servers implement SSE differently:
-- Some send multiple `data:` lines per event
-- Some include `event:` prefixes, some don't
-- Some stream incrementally, some batch
-
-Our proxy had to handle all variations while maintaining JSON-RPC message integrity.
-
----
-
-## What Actually Works (The Tiny Viable Subset)
-
-After all our testing, here's what our proxy approach can reliably monitor:
-
-### ✅ Works
-
-1. **Self-hosted MCP servers** - You control the auth mechanism
-2. **Servers with static API keys** - Rare, but some exist
-3. **Internal/enterprise servers** - Custom auth you configure
-
-### ❌ Doesn't Work
-
-1. **stdio MCP servers** - ~80% of the ecosystem
-2. **OAuth-protected servers** - Figma, Amplitude, Notion, etc.
-3. **Any server where Claude manages auth**
+**Doesn't work:**
+- stdio MCP servers (majority of ecosystem)
+- OAuth-protected servers (Figma, Notion, etc.)
+- Any server where Claude manages auth
 
 ---
 
 ## The Better Approach: Hooks
 
-Claude Code provides a native hooks system that fires at lifecycle events:
+Claude Code provides native hooks that fire at lifecycle events:
 
 ```json
 {
@@ -202,58 +213,76 @@ Claude Code provides a native hooks system that fires at lifecycle events:
 }
 ```
 
+```
+┌──────────────┐                    ┌────────────┐
+│  Claude Code │ ────────────────►  │ MCP Server │
+└──────────────┘                    └────────────┘
+       │
+       │ hook fires
+       ▼
+┌──────────────┐
+│   Recorder   │
+└──────────────┘
+```
+
 ### What Hooks Capture
 
-| Hook | Trigger | Data Available |
-|------|---------|----------------|
-| PreToolUse | Before ANY tool | tool_name, tool_input |
-| PostToolUse | After ANY tool | tool_name, tool_input, tool_response |
-| Stop | Agent completes | Full transcript |
-| SessionStart/End | Session lifecycle | Statistics |
+| Hook | Trigger | Data |
+|------|---------|------|
+| PreToolUse | Before any tool | tool_name, tool_input |
+| PostToolUse | After any tool | tool_name, tool_input, tool_response |
+| Stop | Session ends | Statistics |
 
 ### Why Hooks Work
 
-1. **Transport-agnostic** - Captures stdio, HTTP, built-in tools
-2. **Post-auth** - Runs after Claude handles authentication
-3. **Native integration** - No proxy configuration needed
-4. **Complete visibility** - Sees everything Claude sees
+- **Transport-agnostic** - Captures stdio, HTTP, built-in tools
+- **Post-auth** - Runs after Claude handles authentication
+- **No config changes per server** - One hook covers everything
+- **Native integration** - Supported by Claude Code directly
+
+### Hook Limitations (For Balance)
+
+Hooks aren't perfect:
+
+| Limitation | Impact |
+|------------|--------|
+| Synchronous execution | Adds latency to each tool call |
+| Shell command overhead | ~10-50ms per invocation |
+| No raw protocol visibility | Can't see MCP frame details |
+| Error handling complexity | Hook failures need graceful handling |
+
+For most observability use cases, these tradeoffs are acceptable.
 
 ---
 
 ## Lessons Learned
 
-### 1. Understand the Ecosystem Before Building
+**1. Understand the ecosystem first.** We assumed HTTP dominance because that's how web APIs work. MCP evolved differently—local-first, process-based.
 
-We assumed HTTP dominance because that's how web APIs work. MCP evolved differently—local-first, process-based, security-conscious.
+**2. OAuth blocking is a feature.** Our inability to proxy OAuth servers is a security success. Tokens should be opaque.
 
-### 2. OAuth Is a Feature, Not a Bug
+**3. Platform-native beats generic.** Claude Code's hooks provide better observability than any external proxy could.
 
-OAuth-protected MCP servers are more secure precisely because tokens aren't exposed. Our inability to proxy them is a security success story.
-
-### 3. Platform-Native Beats Generic
-
-Claude Code's hooks system provides better observability than any proxy could. The platform knows more than an external observer ever could.
-
-### 4. Fail Fast, Pivot Faster
-
-We spent weeks on the proxy approach before accepting its limitations. Earlier testing with real OAuth servers would have revealed the constraints sooner.
+**4. Fail fast.** A few days of real testing with OAuth servers revealed constraints that architecture diagrams couldn't.
 
 ---
 
 ## Conclusion
 
-Building MCP observability taught us that the "obvious" approach (HTTP proxy) conflicts with MCP's actual architecture (stdio-dominant, OAuth-protected).
+The "obvious" approach (HTTP proxy) conflicts with MCP's actual architecture (stdio-dominant, OAuth-protected). These constraints are deliberate design choices prioritizing security and local operation.
 
-The constraints aren't bugs—they're deliberate design choices prioritizing security and local-first operation. Effective observability requires working with the platform (hooks, OpenTelemetry) rather than around it (proxies).
+For teams building MCP observability:
 
-For teams building MCP observability tools:
-
-1. **Use hooks** for Claude Code—it's the only complete solution
-2. **Use OpenTelemetry** for metrics/traces—Claude Code exports natively
-3. **Accept platform specificity**—each agent platform needs its own approach
-
-The MCP ecosystem is young. As it matures, we may see standardized observability primitives. Until then, platform-native integration beats generic proxying every time.
+1. **Use hooks for Claude Code**—it's the only complete solution
+2. **Accept platform specificity**—each agent needs its own approach
+3. **Don't fight the architecture**—work with it
 
 ---
 
-*This article documents our experience building [agent-recorder](https://github.com/EdytaKucharska/agent_recorder), an observability tool for Claude Code. We pivoted from proxy-based to hooks-based monitoring after discovering the constraints described above.*
+*This documents our experience building [agent-recorder](https://github.com/EdytaKucharska/agent_recorder). We pivoted from proxy-based to hooks-based monitoring after discovering these constraints.*
+
+## Further Reading
+
+- [MCP Specification - Transports](https://modelcontextprotocol.io/specification/2025-03-26/basic/transports)
+- [Why MCP Deprecated SSE for Streamable HTTP](https://blog.fka.dev/blog/2025-06-06-why-mcp-deprecated-sse-and-go-with-streamable-http/)
+- [mcp-proxy: stdio ↔ HTTP bridge](https://github.com/sparfenyuk/mcp-proxy)
