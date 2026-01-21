@@ -263,7 +263,7 @@ For most observability use cases, these tradeoffs are acceptable.
 
 **3. Platform-native beats generic.** Claude Code's hooks provide better observability than any external proxy could.
 
-**4. Fail fast.** A few days of real testing with OAuth servers revealed constraints that architecture diagrams couldn't.
+**4. Learn by building, not just reading.** A few days of ideating and vibe-coding multiple approaches taught us more about MCP's real constraints than any architecture diagram or specification could.
 
 ---
 
