@@ -73,56 +73,56 @@ The MCP ecosystem evolved around local-first tooling. By the time we built our p
 
 ---
 
-## Constraint 2: Why We Didn't Intercept stdio
+## Constraint 2: Why We Ruled Out stdio Interception
 
-"Just intercept stdin/stdout" sounds easy. We considered several approaches:
+"Just intercept stdin/stdout" sounds easy. Before committing to the proxy approach, we evaluated several alternatives—and ruled them out during design.
 
-### Wrapper Scripts
+### Wrapper Scripts (Evaluated)
 
-Wrap the MCP command to tee stdin/stdout to a recorder:
+The idea: wrap the MCP command to tee stdin/stdout to a recorder:
 
 ```bash
 #!/bin/bash
 exec npx ... | tee /tmp/mcp.log
 ```
 
-**Problems:**
-- Bidirectional streams are tricky—stdin and stdout are separate
-- Buffering issues corrupt JSON-RPC message boundaries
-- Every MCP server needs a custom wrapper
-- User has to modify their config for every server
+**Why we ruled it out:**
+- Bidirectional streams are tricky—stdin and stdout are separate pipes
+- Buffering issues would corrupt JSON-RPC message boundaries
+- Every MCP server would need a custom wrapper
+- Users would have to modify their config for every server
 
-### LD_PRELOAD Interception (Linux)
+### LD_PRELOAD Interception (Considered, Not Built)
 
-Inject a shared library to intercept read()/write() calls:
+In theory, you could inject a shared library to intercept read()/write() calls:
 
 ```bash
 LD_PRELOAD=/path/to/intercept.so npx ...
 ```
 
-**Problems:**
+**Why we didn't pursue it:**
 - Linux-only (no macOS support without different techniques)
 - Breaks with statically linked binaries
 - Security tools may flag it as suspicious
-- Fragile across Node.js versions
+- Fragile across Node.js versions and runtime changes
 
-### ptrace-based Monitoring
+### ptrace/strace Monitoring (Considered, Not Built)
 
-Attach a debugger to trace syscalls:
+Another theoretical option: attach a debugger to trace syscalls:
 
 ```bash
 strace -f -e read,write npx ...
 ```
 
-**Problems:**
+**Why we didn't pursue it:**
 - Significant performance overhead
 - Platform-specific (ptrace on Linux, dtrace on macOS)
 - Requires elevated permissions on some systems
-- Output parsing is complex
+- Output parsing is complex and error-prone
 
 ### Our Conclusion
 
-All stdio interception approaches share the same problem: **fragility**. They work until they don't, and debugging failures is painful. For a developer tool, reliability matters more than coverage.
+We ruled out these approaches during design—not after building them. The common problem: **fragility**. For a developer tool, reliability matters more than coverage. We'd rather support fewer scenarios reliably than more scenarios poorly.
 
 ---
 
