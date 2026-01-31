@@ -1,6 +1,6 @@
 {
   "name": "agent-recorder",
-  "version": "1.0.9",
+  "version": "2.0.7",
   "private": true,
   "description": "Local-first flight recorder for Claude Code",
   "author": "Edyta Kucharska",
