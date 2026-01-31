@@ -2,12 +2,18 @@
  * TUI API client for fetching sessions and events.
  */
 
-import type { Session, BaseEvent, SessionWithActivity } from "@agent-recorder/core";
+import type {
+  Session,
+  BaseEvent,
+  SessionWithActivity,
+} from "@agent-recorder/core";
 
 /**
  * Fetch all sessions from the API (with last activity).
  */
-export async function fetchSessions(baseUrl: string): Promise<SessionWithActivity[]> {
+export async function fetchSessions(
+  baseUrl: string
+): Promise<SessionWithActivity[]> {
   try {
     const response = await fetch(`${baseUrl}/api/sessions`, {
       signal: AbortSignal.timeout(5000),

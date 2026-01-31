@@ -144,7 +144,9 @@ export function EventInspectPanel({
       {viewMode === "input" && (
         <Box flexDirection="column" marginTop={1}>
           <Text dimColor>{"─".repeat(66)}</Text>
-          <Text bold color="cyan">Input JSON</Text>
+          <Text bold color="cyan">
+            Input JSON
+          </Text>
           <Box marginTop={1}>
             <Text dimColor>{formatJson(event.inputJson)}</Text>
           </Box>
@@ -154,7 +156,9 @@ export function EventInspectPanel({
       {viewMode === "output" && (
         <Box flexDirection="column" marginTop={1}>
           <Text dimColor>{"─".repeat(66)}</Text>
-          <Text bold color="green">Output JSON</Text>
+          <Text bold color="green">
+            Output JSON
+          </Text>
           <Box marginTop={1}>
             <Text dimColor>{formatJson(event.outputJson)}</Text>
           </Box>
