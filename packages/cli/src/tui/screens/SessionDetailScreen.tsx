@@ -256,27 +256,31 @@ export function SessionDetailScreen({
           </Text>
         </Box>
         <Box>
-          <Text color="cyan">[Esc]</Text> <Text dimColor>back</Text>
-          {"  "}
-          <Text color="cyan">[f]</Text> <Text dimColor>follow</Text>
+          <Text>
+            <Text color="cyan">[Esc]</Text> <Text dimColor>back</Text>
+            {"  "}
+            <Text color="cyan">[f]</Text> <Text dimColor>follow</Text>
+          </Text>
         </Box>
       </Box>
 
       {/* Filter tabs */}
       <Box marginTop={1}>
-        <Text dimColor>Filter: </Text>
-        {FILTER_OPTIONS.map((opt) => (
-          <Text key={opt}>
-            {opt === filter ? (
-              <Text color="cyan" bold>
-                [{opt}]
-              </Text>
-            ) : (
-              <Text dimColor>{opt}</Text>
-            )}
-            {"  "}
-          </Text>
-        ))}
+        <Text>
+          <Text dimColor>Filter: </Text>
+          {FILTER_OPTIONS.map((opt) => (
+            <Text key={opt}>
+              {opt === filter ? (
+                <Text color="cyan" bold>
+                  [{opt}]
+                </Text>
+              ) : (
+                <Text dimColor>{opt}</Text>
+              )}
+              {"  "}
+            </Text>
+          ))}
+        </Text>
       </Box>
 
       <Text dimColor>{"─".repeat(66)}</Text>
