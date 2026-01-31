@@ -5,7 +5,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { Box, Text, useInput, useApp } from "ink";
 import TextInput from "ink-text-input";
-import type { Session } from "@agent-recorder/core";
+import type { SessionWithActivity } from "@agent-recorder/core";
 import {
   Header,
   Table,
@@ -20,7 +20,7 @@ export interface SessionsScreenProps {
   onSelectSession: (sessionId: string) => void;
 }
 
-interface SessionWithCount extends Session {
+interface SessionWithCount extends SessionWithActivity {
   eventCount: number;
 }
 
@@ -181,10 +181,14 @@ export function SessionsScreen({
       render: (row) => <Text>{row.eventCount}</Text>,
     },
     {
-      key: "started",
-      header: "Started",
+      key: "lastActivity",
+      header: "Last Active",
       width: 12,
-      render: (row) => <Text dimColor>{formatTimeAgo(row.startedAt)}</Text>,
+      render: (row) => (
+        <Text dimColor>
+          {formatTimeAgo(row.lastActivityAt ?? row.startedAt)}
+        </Text>
+      ),
     },
     {
       key: "duration",

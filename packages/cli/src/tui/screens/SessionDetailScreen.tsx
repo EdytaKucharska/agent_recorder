@@ -192,16 +192,18 @@ export function SessionDetailScreen({
       render: (row) => <Text dimColor>{formatTime(row.startedAt)}</Text>,
     },
     {
-      key: "type",
-      header: "Type",
-      width: 14,
-      render: (row) => <Text>{row.eventType}</Text>,
-    },
-    {
       key: "name",
       header: "Name",
-      width: 20,
-      render: (row) => <Text>{getEventName(row).slice(0, 18)}</Text>,
+      width: 16,
+      render: (row) => <Text>{getEventName(row).slice(0, 14)}</Text>,
+    },
+    {
+      key: "server",
+      header: "Server",
+      width: 14,
+      render: (row) => (
+        <Text dimColor>{(row.upstreamKey ?? "claude-code").slice(0, 12)}</Text>
+      ),
     },
     {
       key: "duration",
