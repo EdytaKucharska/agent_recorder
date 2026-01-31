@@ -8,7 +8,7 @@ import {
   createSession,
   endSession,
   getSessionById,
-  listSessions,
+  listSessionsWithActivity,
   type SessionStatus,
 } from "@agent-recorder/core";
 import { randomUUID } from "node:crypto";
@@ -77,13 +77,13 @@ export async function registerSessionsRoutes(
     }
   );
 
-  // List sessions
+  // List sessions with last activity
   app.get<{ Querystring: { status?: SessionStatus } }>(
     "/api/sessions",
     async (request) => {
       try {
         const { status } = request.query;
-        return listSessions(db, status);
+        return listSessionsWithActivity(db, status);
       } catch (error) {
         console.error("Failed to list sessions:", error);
         return [];

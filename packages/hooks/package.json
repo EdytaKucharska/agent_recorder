@@ -1,6 +1,6 @@
 {
   "name": "@agent-recorder/hooks",
-  "version": "2.0.7",
+  "version": "2.0.8",
   "description": "Claude Code hook handlers for Agent Recorder",
   "type": "module",
   "exports": {

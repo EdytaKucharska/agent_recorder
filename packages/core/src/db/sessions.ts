@@ -95,3 +95,36 @@ export function listSessions(
     return (stmt.all() as SessionRow[]).map(rowToSession);
   }
 }
+
+/** Session with last activity timestamp */
+export interface SessionWithActivity extends Session {
+  lastActivityAt: string | null;
+}
+
+/** List sessions with last activity timestamp from events */
+export function listSessionsWithActivity(
+  db: Database.Database,
+  status?: SessionStatus
+): SessionWithActivity[] {
+  const query = `
+    SELECT
+      s.*,
+      (SELECT MAX(e.started_at) FROM events e WHERE e.session_id = s.id) as last_activity_at
+    FROM sessions s
+    ${status ? "WHERE s.status = ?" : ""}
+    ORDER BY COALESCE(
+      (SELECT MAX(e.started_at) FROM events e WHERE e.session_id = s.id),
+      s.started_at
+    ) DESC
+  `;
+
+  const stmt = db.prepare(query);
+  const rows = (status ? stmt.all(status) : stmt.all()) as (SessionRow & {
+    last_activity_at: string | null;
+  })[];
+
+  return rows.map((row) => ({
+    ...rowToSession(row),
+    lastActivityAt: row.last_activity_at,
+  }));
+}

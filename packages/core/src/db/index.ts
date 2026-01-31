@@ -10,6 +10,8 @@ export {
   endSession,
   getSessionById,
   listSessions,
+  listSessionsWithActivity,
+  type SessionWithActivity,
 } from "./sessions.js";
 export {
   insertEvent,
