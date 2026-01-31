@@ -1,6 +1,6 @@
 {
   "name": "@agent-recorder/service",
-  "version": "0.0.1",
+  "version": "2.0.8",
   "description": "Local daemon for Agent Recorder (MCP proxy + REST API)",
   "type": "module",
   "exports": {
