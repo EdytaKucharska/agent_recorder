@@ -134,8 +134,26 @@ agent-recorder tui               # Interactive terminal UI
 agent-recorder sessions list     # List all sessions
 agent-recorder sessions show <id> # Show session details
 agent-recorder sessions current  # Get active session
-agent-recorder export <id>       # Export to JSONL
 ```
+
+### Export
+
+```bash
+agent-recorder export <id>                    # Export to JSONL (default)
+agent-recorder export <id> --format json      # Export to JSON
+agent-recorder export <id> --format har       # Export to HAR (HTTP Archive)
+agent-recorder export <id> --format otlp      # Export to OpenTelemetry
+agent-recorder export <id> -o session.har     # Export to file
+```
+
+**Export Formats:**
+
+| Format | Description                                          |
+| ------ | ---------------------------------------------------- |
+| jsonl  | JSON Lines - one object per line                     |
+| json   | Pretty-printed JSON with session and events          |
+| har    | HTTP Archive - compatible with browser dev tools     |
+| otlp   | OpenTelemetry - for observability platforms (Jaeger) |
 
 ### Configuration
 

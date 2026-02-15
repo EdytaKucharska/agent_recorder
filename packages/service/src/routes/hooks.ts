@@ -40,6 +40,28 @@ interface HookEventPayload {
   };
 }
 
+/** Truncate a string for logging */
+function truncateForLog(value: unknown, maxLength = 100): string {
+  if (value === null || value === undefined) return "(none)";
+  const str = typeof value === "string" ? value : JSON.stringify(value);
+  if (str.length <= maxLength) return str;
+  return str.slice(0, maxLength) + "...";
+}
+
+/** Format tool call for logging */
+function formatToolCallLog(
+  toolName: string,
+  upstreamKey: string | null,
+  input: Record<string, unknown> | undefined,
+  output: unknown | undefined
+): string {
+  const server = upstreamKey ?? "builtin";
+  const inputSummary = input ? truncateForLog(input, 150) : "(no input)";
+  const outputSummary = output ? truncateForLog(output, 150) : "(no output)";
+
+  return `[${server}] ${toolName}\n  Input:  ${inputSummary}\n  Output: ${outputSummary}`;
+}
+
 /** Get or create a session by ID */
 function getOrCreateSession(db: Database.Database, sessionId: string) {
   // Check if session exists
@@ -145,6 +167,12 @@ export async function registerHooksRoutes(
           const now = new Date().toISOString();
           const sequence = allocateSequence(db, session.id);
 
+          // Determine MCP method from tool input if available
+          let mcpMethod = "tools/call";
+          if (payload.tool_input?.method) {
+            mcpMethod = String(payload.tool_input.method);
+          }
+
           const eventInput: InsertEventInput = {
             id: randomUUID(),
             sessionId: session.id,
@@ -154,7 +182,7 @@ export async function registerHooksRoutes(
             agentRole: "main",
             agentName: "claude-code",
             toolName: cleanName,
-            mcpMethod: "tools/call",
+            mcpMethod,
             upstreamKey: upstreamKey,
             startedAt: now,
             endedAt: now,
@@ -168,6 +196,14 @@ export async function registerHooksRoutes(
           };
 
           const event = insertEvent(db, eventInput);
+
+          // Always log tool calls with details (useful for debugging)
+          const isMcpTool = upstreamKey && upstreamKey !== "builtin";
+          if (isMcpTool || debug) {
+            console.log(
+              `[hooks] ${formatToolCallLog(cleanName, upstreamKey, payload.tool_input, payload.tool_response)}`
+            );
+          }
 
           if (debug) {
             console.log(
