@@ -22,6 +22,27 @@ A **local-first flight recorder** for Claude Code and MCP servers. Captures a pe
 
 ## Quick Start
 
+### Option 1: Claude Code Plugin (Recommended)
+
+Install directly in Claude Code using the plugin system:
+
+```bash
+# In Claude Code, run:
+/plugin install agent-recorder@EdytaKucharska/agent_recorder
+```
+
+After installation, use these slash commands:
+
+| Command                  | Description                     |
+| ------------------------ | ------------------------------- |
+| `/agent-recorder:start`  | Start the recording daemon      |
+| `/agent-recorder:stop`   | Stop the recording daemon       |
+| `/agent-recorder:open`   | Open the TUI to browse sessions |
+| `/agent-recorder:status` | Check if daemon is running      |
+| `/agent-recorder:export` | Export session to JSON/HAR/OTLP |
+
+### Option 2: npm Install
+
 ```bash
 # Install globally
 npm install -g agent-recorder
