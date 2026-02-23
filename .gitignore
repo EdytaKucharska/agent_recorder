@@ -45,3 +45,6 @@ Thumbs.db
 .claude/local/
 .claude/cache/
 *.tgz
+
+# Docs
+docs
