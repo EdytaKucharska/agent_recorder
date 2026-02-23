@@ -1,0 +1,32 @@
+# Dependencies
+node_modules
+**/node_modules
+
+# Build artifacts
+**/dist
+packages/dist/vendor
+
+# Development files
+.git
+.github
+.vscode
+*.log
+*.tgz
+
+# Storage
+.storage
+*.sqlite
+
+# Environment
+.env
+.env.*
+
+# Documentation
+docs
+*.md
+!README.md
+
+# Test files
+**/*.test.ts
+**/*.spec.ts
+coverage

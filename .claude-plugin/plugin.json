@@ -1,0 +1,11 @@
+{
+  "name": "agent-recorder",
+  "description": "Local-first flight recorder for Claude Code - captures MCP tool calls, subagents, and skills without recording prompts or chain-of-thought",
+  "version": "2.0.8",
+  "author": {
+    "name": "Edyta Kucharska"
+  },
+  "homepage": "https://github.com/EdytaKucharska/agent_recorder",
+  "license": "MIT",
+  "keywords": ["mcp", "observability", "flight-recorder", "debugging"]
+}
