@@ -2,7 +2,11 @@
  * Sessions commands - list, show, current, tail, view, stats, grep, summarize.
  */
 
-import { getActualListenPort, type Session, type BaseEvent } from "@agent-recorder/core";
+import {
+  getActualListenPort,
+  type Session,
+  type BaseEvent,
+} from "@agent-recorder/core";
 import {
   computeSessionSummary,
   formatStatsText,

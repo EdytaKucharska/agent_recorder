@@ -122,10 +122,9 @@ export async function statusCommand(): Promise<void> {
   // Process is running, try to get health info
   let health: HealthResponse | null = null;
   try {
-    const response = await fetch(
-      `http://127.0.0.1:${listenPort}/api/health`,
-      { signal: AbortSignal.timeout(2000) }
-    );
+    const response = await fetch(`http://127.0.0.1:${listenPort}/api/health`, {
+      signal: AbortSignal.timeout(2000),
+    });
     if (response.ok) {
       health = (await response.json()) as HealthResponse;
     }

@@ -98,9 +98,7 @@ export async function startServer(
 
   if (port === null) {
     const maxPort = Math.min(preferredPort + maxAttempts - 1, 65535);
-    throw new Error(
-      `No available port in range ${preferredPort}-${maxPort}`
-    );
+    throw new Error(`No available port in range ${preferredPort}-${maxPort}`);
   }
 
   // Now call app.listen exactly once

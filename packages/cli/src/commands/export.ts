@@ -4,7 +4,11 @@
  */
 
 import { writeFileSync } from "node:fs";
-import { getActualListenPort, type Session, type BaseEvent } from "@agent-recorder/core";
+import {
+  getActualListenPort,
+  type Session,
+  type BaseEvent,
+} from "@agent-recorder/core";
 
 async function fetchJson<T>(url: string): Promise<T> {
   const response = await fetch(url);
