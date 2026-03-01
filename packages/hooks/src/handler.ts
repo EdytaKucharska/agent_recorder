@@ -22,9 +22,13 @@
  */
 
 import type { HookEvent, HookOutput } from "./types.js";
+import { getActualListenPort } from "@agent-recorder/core";
 
-/** Default service URL */
-const DEFAULT_SERVICE_URL = "http://127.0.0.1:8787";
+/** Resolve the service URL, reading the daemon's runtime port file if available */
+function getServiceUrl(): string {
+  const port = getActualListenPort();
+  return `http://127.0.0.1:${port}`;
+}
 
 /** Read all data from stdin */
 async function readStdin(): Promise<string> {
@@ -107,7 +111,7 @@ async function main(): Promise<void> {
   const args = process.argv.slice(2);
   const hookType = args[0] ?? "Unknown";
   const debug = process.env.AGENT_RECORDER_DEBUG === "1";
-  const serviceUrl = process.env.AGENT_RECORDER_URL ?? DEFAULT_SERVICE_URL;
+  const serviceUrl = process.env.AGENT_RECORDER_URL ?? getServiceUrl();
 
   if (debug) {
     console.error(`[agent-recorder-hook] Hook type: ${hookType}`);

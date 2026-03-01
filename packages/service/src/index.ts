@@ -14,6 +14,8 @@ import {
   getDaemonPaths,
   writePidFile,
   removePidFile,
+  writePortFile,
+  removePortFile,
   releaseLock,
   installTimestampLogging,
   readProvidersFile,
@@ -118,7 +120,10 @@ export async function startDaemon(
     db,
     currentSessionId: sessionManager.sessionId,
   });
-  await startServer(app, config.listenPort);
+  const actualListenPort = await startServer(app, config.listenPort);
+
+  // Write actual port so CLI commands can find the daemon even if it fell back
+  writePortFile(actualListenPort);
 
   // Always start MCP proxy (handles missing downstream with 503)
   console.log(`MCP proxy port: ${config.mcpProxyPort}`);
@@ -178,7 +183,8 @@ export async function startDaemon(
 
     db.close();
 
-    // Clean up PID file and lock in daemon mode
+    // Clean up port file, PID file and lock
+    removePortFile();
     if (daemonMode) {
       removePidFile();
       releaseLock(paths.lockFile);

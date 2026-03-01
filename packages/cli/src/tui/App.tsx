@@ -5,7 +5,7 @@
 import React, { useState, useEffect } from "react";
 import { Box, Text } from "ink";
 import type { BaseEvent } from "@agent-recorder/core";
-import { loadConfig } from "@agent-recorder/core";
+import { getActualListenPort } from "@agent-recorder/core";
 import { SessionsScreen, SessionDetailScreen } from "./screens/index.js";
 import { EventInspectPanel } from "./components/EventInspectPanel.js";
 import { checkDaemonHealth } from "./api.js";
@@ -21,8 +21,7 @@ interface AppState {
 }
 
 export function App(): React.ReactElement {
-  const config = loadConfig();
-  const baseUrl = `http://127.0.0.1:${config.listenPort}`;
+  const baseUrl = `http://127.0.0.1:${getActualListenPort()}`;
 
   const [state, setState] = useState<AppState>({
     screen: "loading",

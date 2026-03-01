@@ -44,14 +44,40 @@ export async function createServer(
 
 /**
  * Start the server on localhost only.
+ * If the preferred port is in use, tries up to 10 sequential ports.
+ * Returns the actual port the server bound to.
  */
 export async function startServer(
   app: FastifyInstance,
-  port: number
-): Promise<void> {
-  await app.listen({
-    port,
-    host: "127.0.0.1", // localhost only
-  });
-  console.log(`Agent Recorder daemon listening on http://127.0.0.1:${port}`);
+  preferredPort: number
+): Promise<number> {
+  const maxAttempts = 10;
+
+  for (let i = 0; i < maxAttempts; i++) {
+    const port = preferredPort + i;
+    try {
+      await app.listen({ port, host: "127.0.0.1" });
+      if (i > 0) {
+        console.log(
+          `Port ${preferredPort} in use — bound to http://127.0.0.1:${port} instead`
+        );
+      } else {
+        console.log(
+          `Agent Recorder daemon listening on http://127.0.0.1:${port}`
+        );
+      }
+      return port;
+    } catch (err) {
+      const error = err as { code?: string };
+      if (error.code !== "EADDRINUSE" || i === maxAttempts - 1) {
+        throw err;
+      }
+      console.log(`Port ${port} in use, trying ${port + 1}...`);
+    }
+  }
+
+  // Unreachable — satisfies TypeScript
+  throw new Error(
+    `No available port in range ${preferredPort}–${preferredPort + maxAttempts - 1}`
+  );
 }

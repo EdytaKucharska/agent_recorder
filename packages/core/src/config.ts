@@ -5,6 +5,7 @@
 
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { readPortFile } from "./daemon-paths.js";
 
 /** Get the default database path in user's home directory */
 export function getDefaultDbPath(): string {
@@ -76,4 +77,13 @@ export function loadConfig(): Config {
     upstreamsPath,
     debugProxy,
   };
+}
+
+/**
+ * Get the port the daemon is actually listening on.
+ * Reads the runtime port file written by the daemon on startup,
+ * falling back to AR_LISTEN_PORT / default if not present.
+ */
+export function getActualListenPort(): number {
+  return readPortFile() ?? parseInt(process.env["AR_LISTEN_PORT"] ?? "8787", 10);
 }

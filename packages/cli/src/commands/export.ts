@@ -4,7 +4,7 @@
  */
 
 import { writeFileSync } from "node:fs";
-import { loadConfig, type Session, type BaseEvent } from "@agent-recorder/core";
+import { getActualListenPort, type Session, type BaseEvent } from "@agent-recorder/core";
 
 async function fetchJson<T>(url: string): Promise<T> {
   const response = await fetch(url);
@@ -233,8 +233,7 @@ export async function exportCommand(
   id: string,
   options: ExportCommandOptions
 ): Promise<void> {
-  const config = loadConfig();
-  const baseUrl = `http://127.0.0.1:${config.listenPort}`;
+  const baseUrl = `http://127.0.0.1:${getActualListenPort()}`;
   const format = options.format ?? "jsonl";
 
   // Validate format
