@@ -4,6 +4,7 @@
 
 import {
   loadConfig,
+  getActualListenPort,
   getDaemonPaths,
   readPidFile,
   isProcessRunning,
@@ -92,6 +93,7 @@ async function checkProviderReachable(url: string): Promise<boolean> {
 
 export async function statusCommand(): Promise<void> {
   const config = loadConfig();
+  const listenPort = getActualListenPort();
   const paths = getDaemonPaths();
 
   console.log("Agent Recorder Status");
@@ -120,10 +122,9 @@ export async function statusCommand(): Promise<void> {
   // Process is running, try to get health info
   let health: HealthResponse | null = null;
   try {
-    const response = await fetch(
-      `http://127.0.0.1:${config.listenPort}/api/health`,
-      { signal: AbortSignal.timeout(2000) }
-    );
+    const response = await fetch(`http://127.0.0.1:${listenPort}/api/health`, {
+      signal: AbortSignal.timeout(2000),
+    });
     if (response.ok) {
       health = (await response.json()) as HealthResponse;
     }
@@ -132,7 +133,7 @@ export async function statusCommand(): Promise<void> {
   }
 
   // Check port availability
-  const restApiReachable = await checkPort(config.listenPort, "/api/health");
+  const restApiReachable = await checkPort(listenPort, "/api/health");
   const mcpProxyReachable = await checkPort(config.mcpProxyPort, "/", true);
 
   // Display status
@@ -145,7 +146,7 @@ export async function statusCommand(): Promise<void> {
   }
 
   console.log(
-    `REST API:     http://127.0.0.1:${config.listenPort} ${restApiReachable ? "(✓)" : "(✗)"}`
+    `REST API:     http://127.0.0.1:${listenPort} ${restApiReachable ? "(✓)" : "(✗)"}`
   );
   console.log(
     `MCP Proxy:    http://127.0.0.1:${config.mcpProxyPort} ${mcpProxyReachable ? "(✓)" : "(✗)"}`

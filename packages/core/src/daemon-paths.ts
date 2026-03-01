@@ -13,6 +13,7 @@ export interface DaemonPaths {
   lockFile: string;
   logFile: string;
   dbFile: string;
+  portFile: string;
 }
 
 /**
@@ -27,7 +28,60 @@ export function getDaemonPaths(): DaemonPaths {
     lockFile: path.join(baseDir, "agent-recorder.lock"),
     logFile: path.join(baseDir, "agent-recorder.log"),
     dbFile: path.join(baseDir, "agent-recorder.sqlite"),
+    portFile: path.join(baseDir, "agent-recorder.port"),
   };
+}
+
+/**
+ * Write the actual bound port to a runtime port file.
+ * CLI commands read this to find the daemon regardless of env config.
+ */
+export function writePortFile(port: number, portPath?: string): void {
+  const { portFile } = getDaemonPaths();
+  const filePath = portPath ?? portFile;
+  const dir = path.dirname(filePath);
+
+  // mkdirSync with recursive: true is idempotent - no need for existsSync
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(filePath, String(port), "utf-8");
+}
+
+/**
+ * Read the port from the runtime port file.
+ * Returns null if file doesn't exist or is invalid.
+ */
+export function readPortFile(portPath?: string): number | null {
+  const { portFile } = getDaemonPaths();
+  const filePath = portPath ?? portFile;
+
+  try {
+    const content = fs.readFileSync(filePath, "utf-8").trim();
+    const port = parseInt(content, 10);
+    if (isNaN(port) || port <= 0 || port > 65535) {
+      return null;
+    }
+    return port;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Remove the runtime port file on daemon shutdown.
+ */
+export function removePortFile(portPath?: string): void {
+  const { portFile } = getDaemonPaths();
+  const filePath = portPath ?? portFile;
+
+  try {
+    fs.unlinkSync(filePath);
+  } catch (err) {
+    // Only ignore ENOENT (file doesn't exist), rethrow other errors
+    const error = err as { code?: string };
+    if (error.code !== "ENOENT") {
+      throw err;
+    }
+  }
 }
 
 /**

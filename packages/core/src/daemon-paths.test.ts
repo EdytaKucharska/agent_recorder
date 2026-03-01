@@ -11,6 +11,9 @@ import {
   readPidFile,
   writePidFile,
   removePidFile,
+  writePortFile,
+  readPortFile,
+  removePortFile,
   isProcessRunning,
   checkDaemonStatus,
   cleanStalePidFile,
@@ -33,6 +36,9 @@ describe("getDaemonPaths", () => {
     );
     expect(paths.dbFile).toBe(
       path.join(home, ".agent-recorder", "agent-recorder.sqlite")
+    );
+    expect(paths.portFile).toBe(
+      path.join(home, ".agent-recorder", "agent-recorder.port")
     );
   });
 });
@@ -109,6 +115,105 @@ describe("PID file operations", () => {
 
     it("does not throw when file does not exist", () => {
       expect(() => removePidFile(pidFilePath)).not.toThrow();
+    });
+  });
+});
+
+describe("Port file operations", () => {
+  let tempDir: string;
+  let portFilePath: string;
+
+  beforeEach(() => {
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "ar-port-test-"));
+    portFilePath = path.join(tempDir, "test.port");
+  });
+
+  afterEach(() => {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  describe("readPortFile", () => {
+    it("returns null when file does not exist", () => {
+      expect(readPortFile(portFilePath)).toBeNull();
+    });
+
+    it("returns null for empty file", () => {
+      fs.writeFileSync(portFilePath, "");
+      expect(readPortFile(portFilePath)).toBeNull();
+    });
+
+    it("returns null for non-numeric content", () => {
+      fs.writeFileSync(portFilePath, "not-a-number");
+      expect(readPortFile(portFilePath)).toBeNull();
+    });
+
+    it("returns null for negative numbers", () => {
+      fs.writeFileSync(portFilePath, "-123");
+      expect(readPortFile(portFilePath)).toBeNull();
+    });
+
+    it("returns null for port > 65535", () => {
+      fs.writeFileSync(portFilePath, "70000");
+      expect(readPortFile(portFilePath)).toBeNull();
+    });
+
+    it("returns null for port 0", () => {
+      fs.writeFileSync(portFilePath, "0");
+      expect(readPortFile(portFilePath)).toBeNull();
+    });
+
+    it("returns port for valid content", () => {
+      fs.writeFileSync(portFilePath, "8787");
+      expect(readPortFile(portFilePath)).toBe(8787);
+    });
+
+    it("returns port for boundary value 65535", () => {
+      fs.writeFileSync(portFilePath, "65535");
+      expect(readPortFile(portFilePath)).toBe(65535);
+    });
+
+    it("trims whitespace", () => {
+      fs.writeFileSync(portFilePath, "  8787  \n");
+      expect(readPortFile(portFilePath)).toBe(8787);
+    });
+  });
+
+  describe("writePortFile", () => {
+    it("writes port to file", () => {
+      writePortFile(8787, portFilePath);
+      expect(fs.readFileSync(portFilePath, "utf-8")).toBe("8787");
+    });
+
+    it("creates parent directory if needed", () => {
+      const nestedPath = path.join(tempDir, "nested", "dir", "test.port");
+      writePortFile(8787, nestedPath);
+      expect(fs.readFileSync(nestedPath, "utf-8")).toBe("8787");
+    });
+
+    it("overwrites existing file", () => {
+      writePortFile(8787, portFilePath);
+      writePortFile(8788, portFilePath);
+      expect(fs.readFileSync(portFilePath, "utf-8")).toBe("8788");
+    });
+
+    it("is idempotent with existing directory", () => {
+      // First write creates directory
+      writePortFile(8787, portFilePath);
+      // Second write should not fail
+      expect(() => writePortFile(8788, portFilePath)).not.toThrow();
+      expect(fs.readFileSync(portFilePath, "utf-8")).toBe("8788");
+    });
+  });
+
+  describe("removePortFile", () => {
+    it("removes existing file", () => {
+      fs.writeFileSync(portFilePath, "8787");
+      removePortFile(portFilePath);
+      expect(fs.existsSync(portFilePath)).toBe(false);
+    });
+
+    it("does not throw when file does not exist", () => {
+      expect(() => removePortFile(portFilePath)).not.toThrow();
     });
   });
 });

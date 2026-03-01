@@ -4,6 +4,7 @@
 
 import {
   loadConfig,
+  getActualListenPort,
   readPidFile,
   isProcessRunning,
   type Session,
@@ -165,7 +166,7 @@ function isHubified(configData: unknown): boolean {
 
 export async function doctorCommand(): Promise<void> {
   const config = loadConfig();
-  const restBaseUrl = `http://127.0.0.1:${config.listenPort}`;
+  const restBaseUrl = `http://127.0.0.1:${getActualListenPort()}`;
   const proxyBaseUrl = `http://127.0.0.1:${config.mcpProxyPort}`;
 
   const suggestions: string[] = [];

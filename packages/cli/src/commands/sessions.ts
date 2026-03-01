@@ -2,7 +2,11 @@
  * Sessions commands - list, show, current, tail, view, stats, grep, summarize.
  */
 
-import { loadConfig, type Session, type BaseEvent } from "@agent-recorder/core";
+import {
+  getActualListenPort,
+  type Session,
+  type BaseEvent,
+} from "@agent-recorder/core";
 import {
   computeSessionSummary,
   formatStatsText,
@@ -60,8 +64,7 @@ function formatTable(sessions: SessionWithCount[]): void {
 export async function sessionsListCommand(options: {
   status?: string;
 }): Promise<void> {
-  const config = loadConfig();
-  const baseUrl = `http://127.0.0.1:${config.listenPort}`;
+  const baseUrl = `http://127.0.0.1:${getActualListenPort()}`;
 
   try {
     // Fetch sessions
@@ -88,8 +91,7 @@ export async function sessionsListCommand(options: {
 }
 
 export async function sessionsShowCommand(id: string): Promise<void> {
-  const config = loadConfig();
-  const baseUrl = `http://127.0.0.1:${config.listenPort}`;
+  const baseUrl = `http://127.0.0.1:${getActualListenPort()}`;
 
   try {
     // Fetch session details
@@ -115,8 +117,7 @@ export async function sessionsShowCommand(id: string): Promise<void> {
  * Get the current active session ID.
  */
 export async function sessionsCurrentCommand(): Promise<void> {
-  const config = loadConfig();
-  const baseUrl = `http://127.0.0.1:${config.listenPort}`;
+  const baseUrl = `http://127.0.0.1:${getActualListenPort()}`;
 
   try {
     const current = await fetchJson<{
@@ -159,8 +160,7 @@ export async function sessionsTailCommand(
   id: string,
   options: SessionsTailOptions
 ): Promise<void> {
-  const config = loadConfig();
-  const baseUrl = `http://127.0.0.1:${config.listenPort}`;
+  const baseUrl = `http://127.0.0.1:${getActualListenPort()}`;
   const intervalMs = parseInt(options.interval ?? "1000", 10);
   const initialLimit = parseInt(options.n ?? "50", 10);
 
@@ -248,8 +248,7 @@ export async function sessionsViewCommand(
   id: string,
   options: SessionsViewOptions
 ): Promise<void> {
-  const config = loadConfig();
-  const baseUrl = `http://127.0.0.1:${config.listenPort}`;
+  const baseUrl = `http://127.0.0.1:${getActualListenPort()}`;
   const tailCount = options.tail ? parseInt(options.tail, 10) : 200;
   const intervalMs = parseInt(options.interval ?? "1000", 10);
 
@@ -337,8 +336,7 @@ export async function sessionsViewCommand(
  * Show session statistics.
  */
 export async function sessionsStatsCommand(id: string): Promise<void> {
-  const config = loadConfig();
-  const baseUrl = `http://127.0.0.1:${config.listenPort}`;
+  const baseUrl = `http://127.0.0.1:${getActualListenPort()}`;
 
   try {
     const events = await fetchJson<BaseEvent[]>(
@@ -373,8 +371,7 @@ export async function sessionsGrepCommand(
   id: string,
   options: SessionsGrepOptions
 ): Promise<void> {
-  const config = loadConfig();
-  const baseUrl = `http://127.0.0.1:${config.listenPort}`;
+  const baseUrl = `http://127.0.0.1:${getActualListenPort()}`;
 
   try {
     // Fetch all events
@@ -437,8 +434,7 @@ export async function sessionsSummarizeCommand(
   id: string,
   options: SessionsSummarizeOptions
 ): Promise<void> {
-  const config = loadConfig();
-  const baseUrl = `http://127.0.0.1:${config.listenPort}`;
+  const baseUrl = `http://127.0.0.1:${getActualListenPort()}`;
   const format = options.format ?? "text";
 
   try {
