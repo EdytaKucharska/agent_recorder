@@ -41,10 +41,8 @@ export function writePortFile(port: number, portPath?: string): void {
   const filePath = portPath ?? portFile;
   const dir = path.dirname(filePath);
 
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
-
+  // mkdirSync with recursive: true is idempotent - no need for existsSync
+  fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(filePath, String(port), "utf-8");
 }
 
@@ -77,8 +75,12 @@ export function removePortFile(portPath?: string): void {
 
   try {
     fs.unlinkSync(filePath);
-  } catch {
-    // Ignore if file doesn't exist
+  } catch (err) {
+    // Only ignore ENOENT (file doesn't exist), rethrow other errors
+    const error = err as { code?: string };
+    if (error.code !== "ENOENT") {
+      throw err;
+    }
   }
 }
 

@@ -3,6 +3,7 @@
  * Creates and configures the daemon server.
  */
 
+import { createServer as createTcpServer } from "node:net";
 import Fastify, { type FastifyInstance } from "fastify";
 import type Database from "better-sqlite3";
 import { registerHealthRoutes } from "./routes/health.js";
@@ -43,6 +44,44 @@ export async function createServer(
 }
 
 /**
+ * Check if a port is available by attempting to bind a temporary server.
+ * This avoids calling Fastify's listen() multiple times on the same instance.
+ */
+function isPortAvailable(port: number, host: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    const server = createTcpServer();
+    server.on("error", () => resolve(false));
+    server.on("listening", () => {
+      server.close(() => resolve(true));
+    });
+    server.listen(port, host);
+  });
+}
+
+/**
+ * Find the first available port in a range.
+ * Returns the port number or null if none available.
+ */
+async function findAvailablePort(
+  preferredPort: number,
+  maxAttempts: number,
+  host: string
+): Promise<number | null> {
+  for (let i = 0; i < maxAttempts; i++) {
+    const port = preferredPort + i;
+    // Bounds check: valid port range is 1-65535
+    if (port > 65535) {
+      return null;
+    }
+    if (await isPortAvailable(port, host)) {
+      return port;
+    }
+    console.log(`Port ${port} in use, trying ${port + 1}...`);
+  }
+  return null;
+}
+
+/**
  * Start the server on localhost only.
  * If the preferred port is in use, tries up to 10 sequential ports.
  * Returns the actual port the server bound to.
@@ -52,32 +91,28 @@ export async function startServer(
   preferredPort: number
 ): Promise<number> {
   const maxAttempts = 10;
+  const host = "127.0.0.1";
 
-  for (let i = 0; i < maxAttempts; i++) {
-    const port = preferredPort + i;
-    try {
-      await app.listen({ port, host: "127.0.0.1" });
-      if (i > 0) {
-        console.log(
-          `Port ${preferredPort} in use — bound to http://127.0.0.1:${port} instead`
-        );
-      } else {
-        console.log(
-          `Agent Recorder daemon listening on http://127.0.0.1:${port}`
-        );
-      }
-      return port;
-    } catch (err) {
-      const error = err as { code?: string };
-      if (error.code !== "EADDRINUSE" || i === maxAttempts - 1) {
-        throw err;
-      }
-      console.log(`Port ${port} in use, trying ${port + 1}...`);
-    }
+  // Find an available port first (avoids calling app.listen multiple times)
+  const port = await findAvailablePort(preferredPort, maxAttempts, host);
+
+  if (port === null) {
+    const maxPort = Math.min(preferredPort + maxAttempts - 1, 65535);
+    throw new Error(
+      `No available port in range ${preferredPort}-${maxPort}`
+    );
   }
 
-  // Unreachable — satisfies TypeScript
-  throw new Error(
-    `No available port in range ${preferredPort}–${preferredPort + maxAttempts - 1}`
-  );
+  // Now call app.listen exactly once
+  await app.listen({ port, host });
+
+  if (port !== preferredPort) {
+    console.log(
+      `Port ${preferredPort} in use - bound to http://${host}:${port} instead`
+    );
+  } else {
+    console.log(`Agent Recorder daemon listening on http://${host}:${port}`);
+  }
+
+  return port;
 }

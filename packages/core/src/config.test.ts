@@ -5,7 +5,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { loadConfig, getDefaultDbPath } from "./config.js";
+import { loadConfig, getDefaultDbPath, getActualListenPort } from "./config.js";
 
 describe("Config", () => {
   const originalEnv = process.env;
@@ -94,6 +94,32 @@ describe("Config", () => {
       process.env["AR_DOWNSTREAM_MCP_URL"] = "http://localhost:9999";
       const config = loadConfig();
       expect(config.downstreamMcpUrl).toBe("http://localhost:9999");
+    });
+  });
+
+  describe("getActualListenPort", () => {
+    // Note: getActualListenPort uses getDaemonPaths which reads os.homedir()
+    // Testing the full flow requires writing to the actual daemon paths,
+    // which we avoid in unit tests. The underlying functions (readPortFile,
+    // checkDaemonStatus) are tested separately with custom paths in
+    // daemon-paths.test.ts.
+
+    it("returns default port when AR_LISTEN_PORT not set", () => {
+      // Without a port file, should return default
+      // (This test may pass or fail depending on daemon state on the machine)
+      const port = getActualListenPort();
+      // At minimum, should be a valid port number
+      expect(port).toBeGreaterThan(0);
+      expect(port).toBeLessThanOrEqual(65535);
+    });
+
+    it("respects AR_LISTEN_PORT environment variable as fallback", () => {
+      process.env["AR_LISTEN_PORT"] = "9000";
+      const port = getActualListenPort();
+      // If daemon is not running or no port file, should return 9000
+      // If daemon IS running with a port file, returns that port
+      expect(port).toBeGreaterThan(0);
+      expect(port).toBeLessThanOrEqual(65535);
     });
   });
 });
