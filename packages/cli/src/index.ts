@@ -36,6 +36,7 @@ import { diagnoseMcpCommand } from "./commands/diagnose.js";
 import { mockMcpCommand } from "./commands/mock-mcp.js";
 import { tuiCommand } from "./commands/tui.js";
 import { discoverCommand } from "./commands/discover.js";
+import { mcpServerCommand } from "./commands/mcp-server.js";
 import { addCommand, removeCommand, listCommand } from "./commands/add.js";
 import {
   upstreamAddCommand,
@@ -376,6 +377,16 @@ program
   .option("--print-env", "Print export command and exit")
   .action(async (options) => {
     await mockMcpCommand(options);
+  });
+
+// MCP Server
+program
+  .command("mcp-server")
+  .description("Start the Agent Recorder MCP server (for n8n and cloud agents)")
+  .option("-p, --port <port>", "Port to listen on (default: 8789)")
+  .option("--host <host>", "Host to bind to (default: 0.0.0.0)")
+  .action(async (options) => {
+    await mcpServerCommand(options);
   });
 
 program.parse();
