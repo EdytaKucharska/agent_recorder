@@ -36,6 +36,7 @@ import { diagnoseMcpCommand } from "./commands/diagnose.js";
 import { mockMcpCommand } from "./commands/mock-mcp.js";
 import { tuiCommand } from "./commands/tui.js";
 import { discoverCommand } from "./commands/discover.js";
+import { mcpServerCommand } from "./commands/mcp-server.js";
 import { addCommand, removeCommand, listCommand } from "./commands/add.js";
 import {
   upstreamAddCommand,
@@ -376,6 +377,18 @@ program
   .option("--print-env", "Print export command and exit")
   .action(async (options) => {
     await mockMcpCommand(options);
+  });
+
+// MCP observability server
+program
+  .command("mcp-server")
+  .description(
+    "Start an MCP server exposing Agent Recorder observability tools"
+  )
+  .option("-p, --port <port>", "Port to listen on", "8789")
+  .option("-H, --host <host>", "Host to bind to", "0.0.0.0")
+  .action(async (options) => {
+    await mcpServerCommand(options);
   });
 
 program.parse();
