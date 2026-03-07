@@ -2,8 +2,9 @@
 node_modules
 **/node_modules
 
-# Build artifacts
-**/dist
+# Build artifacts (exclude compiled output dirs, but NOT packages/dist source package)
+dist/
+packages/*/dist/
 packages/dist/vendor
 
 # Development files
