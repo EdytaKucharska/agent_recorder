@@ -865,6 +865,18 @@ function startMcpServer(host: string, port: number): http.Server {
       return;
     }
 
+    // Health check (for Railway/Docker healthchecks)
+    if (req.method === "GET" && pathname === "/health") {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(
+        JSON.stringify({
+          status: "ok",
+          mode: isCloudMode() ? "cloud" : "local",
+        })
+      );
+      return;
+    }
+
     // SSE: open stream
     if (req.method === "GET" && pathname === "/sse") {
       handleSse(req, res);
