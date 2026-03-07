@@ -490,7 +490,7 @@ function startMcpServer(host: string, port: number): http.Server {
     });
   });
 
-  server.on("error", (err: NodeJS.ErrnoException) => {
+  server.on("error", (err: Error & { code?: string }) => {
     if (err.code === "EADDRINUSE") {
       console.error(
         `Port ${port} is already in use. Stop the existing instance or use --port to choose another.`
@@ -502,7 +502,9 @@ function startMcpServer(host: string, port: number): http.Server {
   });
 
   server.listen(port, host, () => {
-    console.log(`Agent Recorder MCP server listening on http://${host}:${port}/`);
+    console.log(
+      `Agent Recorder MCP server listening on http://${host}:${port}/`
+    );
     console.log("");
     console.log("Available tools:");
     for (const tool of toolDefinitions) {
