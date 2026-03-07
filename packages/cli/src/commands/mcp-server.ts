@@ -983,7 +983,7 @@ export async function mcpServerCommand(
   options: McpServerOptions = {}
 ): Promise<void> {
   const port = parseInt(
-    options.port ?? process.env["AR_MCP_PORT"] ?? "8789",
+    options.port ?? process.env["PORT"] ?? process.env["AR_MCP_PORT"] ?? "8789",
     10
   );
   const host = options.host ?? "0.0.0.0";
