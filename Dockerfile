@@ -29,33 +29,34 @@ RUN pnpm build && pnpm build:dist
 # Production image
 FROM node:20-alpine AS production
 
-# Install runtime dependencies for better-sqlite3
+# Runtime dependencies (libstdc++ for better-sqlite3 native addon)
 RUN apk add --no-cache libstdc++
 
 WORKDIR /app
 
-# Copy built distribution
-COPY --from=base /app/packages/dist/dist ./dist
-COPY --from=base /app/packages/dist/vendor ./vendor
-COPY --from=base /app/packages/dist/package.json ./
+# Copy all compiled workspace packages (preserves pnpm symlink structure)
+COPY --from=base /app/packages/core/dist ./packages/core/dist
+COPY --from=base /app/packages/core/package.json ./packages/core/package.json
+COPY --from=base /app/packages/service/dist ./packages/service/dist
+COPY --from=base /app/packages/service/package.json ./packages/service/package.json
+COPY --from=base /app/packages/cli/dist ./packages/cli/dist
+COPY --from=base /app/packages/cli/package.json ./packages/cli/package.json
+COPY --from=base /app/packages/hooks/dist ./packages/hooks/dist
+COPY --from=base /app/packages/hooks/package.json ./packages/hooks/package.json
+COPY --from=base /app/packages/stdio-proxy/dist ./packages/stdio-proxy/dist
+COPY --from=base /app/packages/stdio-proxy/package.json ./packages/stdio-proxy/package.json
+
+# Copy per-package node_modules (pnpm creates local symlinks for each package's deps)
+COPY --from=base /app/packages/cli/node_modules ./packages/cli/node_modules
+COPY --from=base /app/packages/service/node_modules ./packages/service/node_modules
+
+# Copy root node_modules (contains the .pnpm virtual store that symlinks point into)
 COPY --from=base /app/node_modules ./node_modules
 
 # Create data directory
 RUN mkdir -p /data
 
-# Environment variables
-ENV AR_LISTEN_PORT=8787
-ENV AR_UI_PORT=8788
-ENV AR_DB_PATH=/data/agent-recorder.sqlite
 ENV NODE_ENV=production
+EXPOSE 8789
 
-# Expose ports
-EXPOSE 8787 8788
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:8787/api/health || exit 1
-
-# Run the service
-ENTRYPOINT ["node", "dist/index.js"]
-CMD ["start"]
+CMD ["node", "packages/cli/dist/index.js", "mcp-server"]
