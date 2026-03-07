@@ -47,6 +47,7 @@ COPY --from=base /app/packages/stdio-proxy/dist ./packages/stdio-proxy/dist
 COPY --from=base /app/packages/stdio-proxy/package.json ./packages/stdio-proxy/package.json
 
 # Copy per-package node_modules (pnpm creates local symlinks for each package's deps)
+COPY --from=base /app/packages/core/node_modules ./packages/core/node_modules
 COPY --from=base /app/packages/cli/node_modules ./packages/cli/node_modules
 COPY --from=base /app/packages/service/node_modules ./packages/service/node_modules
 
