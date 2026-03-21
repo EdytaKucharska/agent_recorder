@@ -11,10 +11,8 @@ import type {
   EventType,
 } from "../types/index.js";
 
-// Re-export InsertEventInput from the canonical definition in @agent-recorder/types
-// to avoid maintaining two copies of the same interface.
-export type { InsertEventInput } from "@agent-recorder/types";
 import type { InsertEventInput } from "@agent-recorder/types";
+export type { InsertEventInput };
 
 /** Row shape from SQLite */
 interface EventRow {

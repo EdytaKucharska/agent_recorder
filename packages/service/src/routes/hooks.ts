@@ -18,7 +18,6 @@ import {
   insertEvent,
   completeEvent,
   findRunningEvent,
-  getEventById,
   endSession,
   createSession,
   getSessionById,
@@ -57,11 +56,16 @@ interface HookEventPayload {
  * Per-session context stack for tracking event hierarchy.
  * Maps session_id → { agentCallEventId, parentStack }
  */
+interface ParentStackEntry {
+  id: string;
+  toolName: string;
+}
+
 interface SessionContext {
   /** Root agent_call event ID for this session */
   agentCallEventId: string | null;
   /** Stack of active parent event IDs (subagent/skill calls) */
-  parentStack: string[];
+  parentStack: ParentStackEntry[];
   /** Timestamp of last activity (for TTL eviction) */
   lastActivityAt: number;
 }
@@ -95,7 +99,7 @@ const hookEventSchema = {
 /** Get the current parent event ID from the context stack */
 function getCurrentParentId(ctx: SessionContext): string | null {
   if (ctx.parentStack.length > 0) {
-    return ctx.parentStack[ctx.parentStack.length - 1]!;
+    return ctx.parentStack[ctx.parentStack.length - 1]!.id;
   }
   return ctx.agentCallEventId;
 }
@@ -342,7 +346,7 @@ export async function registerHooksRoutes(
 
             // Push subagent/skill calls onto the parent stack
             if (eventType === "subagent_call" || eventType === "skill_call") {
-              ctx.parentStack.push(eventId);
+              ctx.parentStack.push({ id: eventId, toolName: cleanName });
             }
 
             if (debug) {
@@ -374,7 +378,10 @@ export async function registerHooksRoutes(
               ? deriveErrorCategory(eventStatus, outputJsonStr)
               : null;
 
-            // Try to find the matching "running" event from PreToolUse
+            // Try to find the matching "running" event from PreToolUse.
+            // Note: findRunningEvent returns the most recent match by toolName,
+            // which may be incorrect if parallel tools share the same name.
+            // See packages/core/src/db/events.ts for the caveat documentation.
             const runningEvent = findRunningEvent(db, session.id, cleanName);
 
             if (runningEvent) {
@@ -390,9 +397,11 @@ export async function registerHooksRoutes(
 
               // Pop from parent stack if this was a subagent/skill
               if (eventType === "subagent_call" || eventType === "skill_call") {
-                const idx = ctx.parentStack.lastIndexOf(runningEvent.id);
-                if (idx !== -1) {
-                  ctx.parentStack.splice(idx, 1);
+                for (let i = ctx.parentStack.length - 1; i >= 0; i--) {
+                  if (ctx.parentStack[i]!.id === runningEvent.id) {
+                    ctx.parentStack.splice(i, 1);
+                    break;
+                  }
                 }
               }
 
@@ -461,6 +470,8 @@ export async function registerHooksRoutes(
                   `[hooks] Stop: completed agent_call ${ctx.agentCallEventId}`
                 );
               }
+              // Clear to prevent double-completion in SessionEnd
+              ctx.agentCallEventId = null;
             }
             break;
           }
@@ -469,29 +480,28 @@ export async function registerHooksRoutes(
             // Find and remove the matching subagent from the parent stack.
             // Search from the top (most recent) to handle nested subagents.
             if (ctx.parentStack.length > 0) {
-              // If we have a tool_name hint, look up the event by ID from the
-              // stack and verify it matches. Otherwise fall back to the top.
+              // If we have a tool_name hint, match by toolName stored in the
+              // stack entry (pure in-memory lookup, no DB queries needed).
+              // Otherwise fall back to the top of the stack.
               let matchIdx = ctx.parentStack.length - 1;
 
               if (payload.tool_name) {
                 const { cleanName } = parseToolName(payload.tool_name);
-                // Search stack from top for a matching subagent event by ID
                 for (let i = ctx.parentStack.length - 1; i >= 0; i--) {
-                  const candidate = getEventById(db, ctx.parentStack[i]!);
-                  if (candidate && candidate.toolName === cleanName) {
+                  if (ctx.parentStack[i]!.toolName === cleanName) {
                     matchIdx = i;
                     break;
                   }
                 }
               }
 
-              const matchedId = ctx.parentStack[matchIdx]!;
+              const matchedEntry = ctx.parentStack[matchIdx]!;
               ctx.parentStack.splice(matchIdx, 1);
               const now = new Date().toISOString();
-              completeEvent(db, matchedId, "success", now);
+              completeEvent(db, matchedEntry.id, "success", now);
               if (debug) {
                 console.log(
-                  `[hooks] SubagentStop: completed ${matchedId} (${payload.subagent_type ?? "unknown"})`
+                  `[hooks] SubagentStop: completed ${matchedEntry.id} (${payload.subagent_type ?? "unknown"})`
                 );
               }
             }
@@ -518,7 +528,9 @@ export async function registerHooksRoutes(
 
             // End the session in the database
             const now = new Date().toISOString();
-            endSession(db, session.id, now, "completed");
+            const sessionStatus: import("@agent-recorder/core").SessionStatus =
+              payload.end_reason === "error" ? "error" : "completed";
+            endSession(db, session.id, now, sessionStatus);
 
             // Clean up context
             sessionContexts.delete(payload.session_id);

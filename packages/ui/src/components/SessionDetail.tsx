@@ -14,8 +14,9 @@ export function SessionDetail({ sessionId }: SessionDetailProps) {
   const [error, setError] = useState<string | null>(null);
   const [sessionStatus, setSessionStatus] = useState<string>("");
   const sessionStatusRef = useRef(sessionStatus);
+  const errorRef = useRef<string | null>(null);
 
-  // Keep ref in sync with state
+  // Keep refs in sync with state
   useEffect(() => {
     sessionStatusRef.current = sessionStatus;
   }, [sessionStatus]);
@@ -32,7 +33,9 @@ export function SessionDetail({ sessionId }: SessionDetailProps) {
       setSessionStatus(session.status);
       setLoading(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load");
+      const msg = err instanceof Error ? err.message : "Failed to load";
+      setError(msg);
+      errorRef.current = msg;
       setLoading(false);
     }
   }, [sessionId]);
@@ -42,6 +45,7 @@ export function SessionDetail({ sessionId }: SessionDetailProps) {
     // Auto-refresh every 3 seconds only for active sessions.
     // Uses a ref to read current status without re-creating the interval.
     const interval = setInterval(() => {
+      if (errorRef.current) return;
       const status = sessionStatusRef.current;
       if (status && status !== "active") return;
       loadEvents();
