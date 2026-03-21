@@ -75,9 +75,30 @@ export async function registerStdioRoutes(
 ): Promise<void> {
   const { db, debug = false } = options;
 
+  const stdioTelemetrySchema = {
+    body: {
+      type: "object" as const,
+      required: ["timestamp", "direction", "raw"],
+      properties: {
+        timestamp: { type: "string" as const },
+        direction: {
+          type: "string" as const,
+          enum: ["request", "response"],
+        },
+        raw: { type: "string" as const },
+        method: { type: "string" as const },
+        id: {},
+        isError: { type: "boolean" as const },
+        sessionId: { type: "string" as const },
+      },
+      additionalProperties: false,
+    },
+  };
+
   // Receive telemetry from STDIO proxy
   app.post<{ Body: StdioTelemetryPayload }>(
     "/api/stdio",
+    { schema: stdioTelemetrySchema },
     async (request, reply) => {
       try {
         const payload = request.body;

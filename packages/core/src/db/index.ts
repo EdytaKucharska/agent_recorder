@@ -21,6 +21,8 @@ export {
   getEventsBySessionFiltered,
   countEventsBySession,
   updateEventStatus,
+  completeEvent,
+  findRunningEvent,
   getLatestToolCallEvent,
   type InsertEventInput,
   type EventQueryOptions,

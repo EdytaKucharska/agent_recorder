@@ -31,6 +31,14 @@ export default [
     },
   },
   {
+    files: ["packages/ui/**/*.ts", "packages/ui/**/*.tsx"],
+    languageOptions: {
+      globals: {
+        ...globals.browser,
+      },
+    },
+  },
+  {
     ignores: ["**/dist/**", "**/node_modules/**", "**/*.js"],
   },
 ];

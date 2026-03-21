@@ -22,6 +22,10 @@ interface PackageConfig {
 
 const packages: PackageConfig[] = [
   {
+    name: "@agent-recorder/types",
+    srcDir: "types",
+  },
+  {
     name: "@agent-recorder/core",
     srcDir: "core",
     extraFiles: ["migrations"],

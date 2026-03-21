@@ -23,9 +23,52 @@ export async function registerEventsRoutes(
 ): Promise<void> {
   const { db } = options;
 
+  const insertEventSchema = {
+    body: {
+      type: "object" as const,
+      required: [
+        "id",
+        "sessionId",
+        "sequence",
+        "eventType",
+        "agentRole",
+        "agentName",
+        "startedAt",
+        "status",
+      ],
+      properties: {
+        id: { type: "string" as const },
+        sessionId: { type: "string" as const },
+        parentEventId: { type: ["string", "null"] as const },
+        sequence: { type: "integer" as const },
+        eventType: {
+          type: "string" as const,
+          enum: ["agent_call", "subagent_call", "skill_call", "tool_call"],
+        },
+        agentRole: { type: "string" as const },
+        agentName: { type: "string" as const },
+        skillName: { type: ["string", "null"] as const },
+        toolName: { type: ["string", "null"] as const },
+        mcpMethod: { type: ["string", "null"] as const },
+        upstreamKey: { type: ["string", "null"] as const },
+        startedAt: { type: "string" as const },
+        endedAt: { type: ["string", "null"] as const },
+        status: {
+          type: "string" as const,
+          enum: ["running", "success", "error", "timeout", "cancelled"],
+        },
+        inputJson: { type: ["string", "null"] as const },
+        outputJson: { type: ["string", "null"] as const },
+        errorCategory: { type: ["string", "null"] as const },
+      },
+      additionalProperties: false,
+    },
+  };
+
   // Insert a new event
   app.post<{ Body: InsertEventInput }>(
     "/api/events",
+    { schema: insertEventSchema },
     async (request, reply) => {
       try {
         const event = insertEvent(db, request.body);

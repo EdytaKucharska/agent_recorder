@@ -30,7 +30,12 @@ export interface Config {
   /** Port for MCP proxy to listen on (default: 8788) */
   mcpProxyPort: number;
 
-  /** URL of downstream MCP server to forward requests to (optional) */
+  /**
+   * URL of the legacy single MCP server to proxy requests to (optional).
+   * Note: In proxy terminology, these are "upstream" servers (the target).
+   * The env var AR_DOWNSTREAM_MCP_URL is kept for backwards compatibility.
+   * Prefer using the upstreams registry for multi-server setups.
+   */
   downstreamMcpUrl: string | null;
 
   /** Path to upstreams registry file for router mode (default: ~/.agent-recorder/upstreams.json) */
@@ -63,7 +68,11 @@ export function loadConfig(): Config {
     ? redactKeysRaw.split(",").map((k) => k.trim())
     : DEFAULT_REDACT_KEYS;
   const mcpProxyPort = parseInt(process.env["AR_MCP_PROXY_PORT"] ?? "8788", 10);
-  const downstreamMcpUrl = process.env["AR_DOWNSTREAM_MCP_URL"] ?? null;
+  // Support both old and new env var names (new takes precedence)
+  const downstreamMcpUrl =
+    process.env["AR_UPSTREAM_MCP_URL"] ??
+    process.env["AR_DOWNSTREAM_MCP_URL"] ??
+    null;
   const upstreamsPath =
     process.env["AR_UPSTREAMS_PATH"] ?? getDefaultUpstreamsPath();
   const debugProxy = process.env["AR_DEBUG_PROXY"] === "1";

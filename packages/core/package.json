@@ -22,6 +22,7 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
+    "@agent-recorder/types": "workspace:*",
     "better-sqlite3": "^11.7.0"
   },
   "devDependencies": {

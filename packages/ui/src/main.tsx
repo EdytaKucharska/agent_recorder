@@ -1,9 +1,15 @@
-/**
- * @agent-recorder/ui
- *
- * Web UI for Agent Recorder.
- * Read-only inspection of recorded sessions and events.
- */
+import React from "react";
+import ReactDOM from "react-dom/client";
+import { App } from "./App.js";
+import "./styles.css";
 
-// Placeholder - UI implementation in Day 2+
-export {};
+const rootEl = document.getElementById("root");
+if (!rootEl) {
+  throw new Error("Root element #root not found in document");
+}
+
+ReactDOM.createRoot(rootEl).render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>
+);

@@ -1,0 +1,26 @@
+{
+  "name": "@agent-recorder/types",
+  "version": "2.0.12",
+  "description": "Portable type definitions for Agent Recorder — zero dependencies",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist"
+  },
+  "files": [
+    "dist"
+  ],
+  "devDependencies": {
+    "typescript": "^5.5.0"
+  },
+  "author": "Edyta Kucharska",
+  "license": "MIT"
+}

@@ -4,18 +4,21 @@
  */
 
 import { createServer as createTcpServer } from "node:net";
-import Fastify, { type FastifyInstance } from "fastify";
+import Fastify, { type FastifyInstance, type FastifyError } from "fastify";
 import type Database from "better-sqlite3";
 import { registerHealthRoutes } from "./routes/health.js";
 import { registerSessionsRoutes } from "./routes/sessions.js";
 import { registerEventsRoutes } from "./routes/events.js";
 import { registerHooksRoutes } from "./routes/hooks.js";
 import { registerStdioRoutes } from "./routes/stdio.js";
+import type { DaemonContext } from "./daemon-context.js";
 
 export interface CreateServerOptions {
   db: Database.Database;
   currentSessionId?: string | null;
   debug?: boolean;
+  daemonContext?: DaemonContext;
+  redactKeys?: string[];
 }
 
 /**
@@ -24,20 +27,47 @@ export interface CreateServerOptions {
 export async function createServer(
   options: CreateServerOptions
 ): Promise<FastifyInstance> {
-  const { db, currentSessionId, debug } = options;
+  const { db, currentSessionId, debug, daemonContext, redactKeys } = options;
 
   const app = Fastify({
     logger: true,
   });
 
+  // Custom error handler: fail-open for hooks/stdio validation errors
+  app.setErrorHandler(async (error: FastifyError, request, reply) => {
+    if (error.validation) {
+      const url = request.url;
+      // Fail-open for hooks and stdio — validation errors should not block Claude
+      if (url.startsWith("/api/hooks") || url.startsWith("/api/stdio")) {
+        console.error(
+          `[validation] ${url}: ${error.message} (fail-open, returning 200)`
+        );
+        return reply.code(200).send({ ok: true, error: "validation" });
+      }
+      // Standard validation error for other routes
+      return reply.code(400).send({
+        error: "Validation error",
+        message: error.message,
+      });
+    }
+    // Re-throw non-validation errors
+    return reply.code(error.statusCode ?? 500).send({
+      error: error.message,
+    });
+  });
+
   // Register routes
-  await registerHealthRoutes(app);
+  await registerHealthRoutes(app, { daemonContext });
   await registerSessionsRoutes(app, {
     db,
     currentSessionId: currentSessionId ?? null,
   });
   await registerEventsRoutes(app, { db });
-  await registerHooksRoutes(app, { db, debug: debug ?? false });
+  await registerHooksRoutes(app, {
+    db,
+    debug: debug ?? false,
+    redactKeys: redactKeys ?? [],
+  });
   await registerStdioRoutes(app, { db, debug: debug ?? false });
 
   return app;

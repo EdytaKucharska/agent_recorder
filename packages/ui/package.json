@@ -1,14 +1,25 @@
 {
   "name": "@agent-recorder/ui",
   "version": "2.0.12",
-  "description": "Web UI for Agent Recorder",
+  "description": "Web UI for Agent Recorder — session inspector",
   "type": "module",
   "private": true,
   "scripts": {
-    "build": "tsc",
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@agent-recorder/core": "workspace:*"
+    "@agent-recorder/types": "workspace:*",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.0"
   }
 }

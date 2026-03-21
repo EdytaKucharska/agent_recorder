@@ -9,6 +9,7 @@ import {
   runMigrations,
   getDefaultMigrationsDir,
   insertEvent,
+  getEventsBySession,
   getLatestToolCallEvent,
   createSession,
   type InsertEventInput,
@@ -113,6 +114,75 @@ describe("events", () => {
       });
 
       expect(eventWithoutUpstream.upstreamKey).toBeNull();
+    });
+  });
+
+  describe("nested event tree (3+ levels)", () => {
+    it("preserves parent-child relationships: agent → subagent → tool", () => {
+      // Level 1: agent_call (root)
+      const agentEvent = insertEvent(db, {
+        ...createEvent(sessionId, 1, "agent_call"),
+        parentEventId: null,
+      });
+      expect(agentEvent.parentEventId).toBeNull();
+
+      // Level 2: subagent_call (child of agent)
+      const subagentEvent = insertEvent(db, {
+        ...createEvent(sessionId, 2, "subagent_call"),
+        parentEventId: agentEvent.id,
+      });
+      expect(subagentEvent.parentEventId).toBe(agentEvent.id);
+
+      // Level 3: tool_call (child of subagent)
+      const toolEvent = insertEvent(db, {
+        ...createEvent(sessionId, 3, "tool_call", "Bash"),
+        parentEventId: subagentEvent.id,
+      });
+      expect(toolEvent.parentEventId).toBe(subagentEvent.id);
+
+      // Verify full tree via getEventsBySession
+      const allEvents = getEventsBySession(db, sessionId);
+      expect(allEvents).toHaveLength(3);
+
+      // Build parent lookup and verify chain
+      const byId = new Map(allEvents.map((e) => [e.id, e]));
+      const tool = byId.get(toolEvent.id)!;
+      const subagent = byId.get(tool.parentEventId!)!;
+      const agent = byId.get(subagent.parentEventId!)!;
+
+      expect(agent.eventType).toBe("agent_call");
+      expect(agent.parentEventId).toBeNull();
+      expect(subagent.eventType).toBe("subagent_call");
+      expect(subagent.parentEventId).toBe(agent.id);
+      expect(tool.eventType).toBe("tool_call");
+      expect(tool.parentEventId).toBe(subagent.id);
+    });
+
+    it("handles 4-level nesting: agent → subagent → skill → tool", () => {
+      const agent = insertEvent(db, {
+        ...createEvent(sessionId, 1, "agent_call"),
+        parentEventId: null,
+      });
+      const subagent = insertEvent(db, {
+        ...createEvent(sessionId, 2, "subagent_call"),
+        parentEventId: agent.id,
+      });
+      const skill = insertEvent(db, {
+        ...createEvent(sessionId, 3, "skill_call"),
+        parentEventId: subagent.id,
+        skillName: "commit",
+      });
+      const tool = insertEvent(db, {
+        ...createEvent(sessionId, 4, "tool_call", "Bash"),
+        parentEventId: skill.id,
+        skillName: "commit",
+      });
+
+      // Walk chain from tool to root
+      expect(tool.parentEventId).toBe(skill.id);
+      expect(skill.parentEventId).toBe(subagent.id);
+      expect(subagent.parentEventId).toBe(agent.id);
+      expect(agent.parentEventId).toBeNull();
     });
   });
 });
