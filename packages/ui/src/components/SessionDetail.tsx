@@ -30,6 +30,9 @@ export function SessionDetail({ sessionId }: SessionDetailProps) {
           // Incremental: append new events
           setEvents((prev) => [...prev, ...evts]);
         } else {
+          // Full load (initial or session change) — reset high-water mark
+          // so polling doesn't skip early events of the new session.
+          maxSequenceRef.current = 0;
           setEvents(evts);
         }
         setTotalCount(count.count);

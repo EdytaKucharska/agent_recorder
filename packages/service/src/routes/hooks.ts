@@ -23,6 +23,7 @@ import {
   getSessionById,
   allocateSequence,
   redactAndTruncate,
+  redactJson,
   deriveErrorCategory,
   type InsertEventInput,
   type EventStatus,
@@ -132,15 +133,17 @@ function formatToolCallLog(
   redactKeys: string[]
 ): string {
   const server = upstreamKey ?? "builtin";
+  // Use redactJson (returns object) instead of redactAndTruncate (returns string)
+  // to avoid double-serialization when truncateForLog calls JSON.stringify.
   const inputSummary = input
     ? truncateForLog(
-        redactKeys.length > 0 ? redactAndTruncate(input, redactKeys) : input,
+        redactKeys.length > 0 ? redactJson(input, redactKeys) : input,
         150
       )
     : "(no input)";
   const outputSummary = output
     ? truncateForLog(
-        redactKeys.length > 0 ? redactAndTruncate(output, redactKeys) : output,
+        redactKeys.length > 0 ? redactJson(output, redactKeys) : output,
         150
       )
     : "(no output)";
@@ -167,8 +170,9 @@ function getOrCreateSession(db: Database.Database, sessionId: string) {
  * a regular output field (e.g. `{ error: "none" }`). The `error` field is
  * now treated as informational metadata only — it is still captured in
  * outputJson for display but does not flip event status to "error".
+ *
+ * @internal Exported for unit testing only.
  */
-/** @internal Exported for unit testing only */
 export function isToolResponseError(response: unknown): boolean {
   if (response === null || response === undefined) return false;
   if (typeof response !== "object" || Array.isArray(response)) return false;
@@ -313,7 +317,15 @@ export async function registerHooksRoutes(
     evictStaleContexts,
     SESSION_CONTEXT_TTL_MS / 2
   );
-  app.addHook("onClose", () => clearInterval(evictionInterval));
+  app.addHook("onClose", () => {
+    clearInterval(evictionInterval);
+    // On graceful shutdown, complete any orphaned running events so they
+    // don't remain in "running" status permanently in the DB.
+    for (const ctx of sessionContexts.values()) {
+      completeOrphanedEvents(ctx);
+    }
+    sessionContexts.clear();
+  });
 
   // Receive hook events from Claude Code
   app.post<{ Body: HookEventPayload }>(

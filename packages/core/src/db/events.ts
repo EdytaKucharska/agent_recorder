@@ -11,6 +11,8 @@ import type {
   EventType,
 } from "../types/index.js";
 
+// InsertEventInput and EventFilterOptions live in @agent-recorder/types
+// (not re-exported from ../types/index.js) — imported directly.
 import type {
   InsertEventInput,
   EventFilterOptions,

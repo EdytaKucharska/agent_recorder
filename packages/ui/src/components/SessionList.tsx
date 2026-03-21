@@ -26,6 +26,7 @@ export function SessionList({ onSelect }: SessionListProps) {
   useEffect(() => {
     let cancelled = false;
     let consecutiveErrors = 0;
+    let intervalId: ReturnType<typeof setInterval> | null = null;
     const MAX_CONSECUTIVE_ERRORS = 3;
 
     async function load() {
@@ -43,6 +44,11 @@ export function SessionList({ onSelect }: SessionListProps) {
           consecutiveErrors++;
           if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
             setError(err instanceof Error ? err.message : "Failed to load");
+            // Stop polling on permanent error
+            if (intervalId) {
+              clearInterval(intervalId);
+              intervalId = null;
+            }
           }
           setLoading(false);
         }
@@ -51,10 +57,10 @@ export function SessionList({ onSelect }: SessionListProps) {
 
     load();
     // Refresh every 5 seconds
-    const interval = setInterval(load, 5000);
+    intervalId = setInterval(load, 5000);
     return () => {
       cancelled = true;
-      clearInterval(interval);
+      if (intervalId) clearInterval(intervalId);
     };
   }, []);
 
