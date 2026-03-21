@@ -81,7 +81,9 @@ export class UpstreamsCache {
             this.watcher = watch(this.path, () => this.scheduleReload());
             this.scheduleReload();
           } catch {
-            // Keep parent dir watcher if upgrade fails
+            // Keep parent dir watcher if upgrade fails — registry may be stale
+            // until the next change event triggers a reload from the directory watcher.
+            console.warn("[upstreams] Failed to upgrade to file watcher; falling back to directory watcher (registry may be stale)");
             this.watcher = watch(dir, (_, fn) => {
               if (fn === this.fileName) this.scheduleReload();
             });

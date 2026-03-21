@@ -262,11 +262,11 @@ describe("Hooks API — isToolResponseError (via PostToolUse status)", () => {
     expect(status).toBe("success");
   });
 
-  it("treats { error: 'something' } as error", async () => {
+  it("treats { error: 'something' } as success (error field is metadata only)", async () => {
     const status = await postToolAndGetStatus({
       error: "something went wrong",
     });
-    expect(status).toBe("error");
+    expect(status).toBe("success");
   });
 
   it("treats { error: '' } (empty string) as success", async () => {
@@ -279,11 +279,11 @@ describe("Hooks API — isToolResponseError (via PostToolUse status)", () => {
     expect(status).toBe("success");
   });
 
-  it("treats { error: { code: 123 } } as error", async () => {
+  it("treats { error: { code: 123 } } as success (error field is metadata only)", async () => {
     const status = await postToolAndGetStatus({
       error: { code: 123, message: "fail" },
     });
-    expect(status).toBe("error");
+    expect(status).toBe("success");
   });
 
   it("treats null response as success", async () => {

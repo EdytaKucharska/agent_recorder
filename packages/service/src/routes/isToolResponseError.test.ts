@@ -27,10 +27,10 @@ describe("isToolResponseError", () => {
     expect(isToolResponseError({ isError: true, error: "" })).toBe(true);
   });
 
-  // --- Top-level error field (heuristic fallback) ---
+  // --- Top-level error field (treated as metadata only, not status signal) ---
 
-  it("returns true for { error: 'something went wrong' }", () => {
-    expect(isToolResponseError({ error: "something went wrong" })).toBe(true);
+  it("returns false for { error: 'something went wrong' } (error field is metadata only)", () => {
+    expect(isToolResponseError({ error: "something went wrong" })).toBe(false);
   });
 
   it("returns false for { error: '' } (empty string)", () => {
@@ -41,9 +41,9 @@ describe("isToolResponseError", () => {
     expect(isToolResponseError({ error: null })).toBe(false);
   });
 
-  it("returns true for { error: { code: 123, message: 'fail' } }", () => {
+  it("returns false for { error: { code: 123, message: 'fail' } } (error field is metadata only)", () => {
     expect(isToolResponseError({ error: { code: 123, message: "fail" } })).toBe(
-      true
+      false
     );
   });
 

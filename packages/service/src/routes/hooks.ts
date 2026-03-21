@@ -148,13 +148,13 @@ function getOrCreateSession(db: Database.Database, sessionId: string) {
 
 /**
  * Detect if a tool response indicates an error.
- * Checks for MCP-style isError (primary signal), then top-level error fields.
+ * Only uses the MCP-standard `isError: true` field for status decisions.
  *
- * The isError path (MCP standard) is reliable. The "error" field fallback is
- * a heuristic that can misclassify custom tools returning { "error": "none" }
- * or similar status strings as errors. This is an inherent limitation of
- * heuristic error detection without a strict protocol. The MCP isError field
- * should be preferred by upstream tool implementors.
+ * Previous versions also checked for a top-level `error` field (JSON-RPC
+ * style), but this produced false positives for tools that use `error` as
+ * a regular output field (e.g. `{ error: "none" }`). The `error` field is
+ * now treated as informational metadata only — it is still captured in
+ * outputJson for display but does not flip event status to "error".
  */
 /** @internal Exported for unit testing only */
 export function isToolResponseError(response: unknown): boolean {
@@ -163,17 +163,8 @@ export function isToolResponseError(response: unknown): boolean {
 
   const obj = response as Record<string, unknown>;
 
-  // MCP tool result: { isError: true } — primary signal
+  // MCP tool result: { isError: true } — the only reliable signal
   if (obj.isError === true) return true;
-
-  // Top-level error field (JSON-RPC style or generic).
-  // Only treat as error if the value is a non-empty string or a non-null object.
-  // Avoids false positives from { error: "" } or { error: null }.
-  if ("error" in obj) {
-    const err = obj.error;
-    if (typeof err === "string") return err.length > 0;
-    if (typeof err === "object" && err !== null) return true;
-  }
 
   return false;
 }
@@ -240,13 +231,33 @@ export async function registerHooksRoutes(
   // SessionStart" warning below covers this case.
   const sessionContexts = new Map<string, SessionContext>();
 
+  /**
+   * Complete orphaned running events when a session context is evicted.
+   * If SessionEnd never fires (process killed, crash), running events
+   * would remain in "running" status indefinitely. This sweeps them
+   * with status "error" so the timeline reflects the abnormal termination.
+   */
+  function completeOrphanedEvents(ctx: SessionContext): void {
+    const now = new Date().toISOString();
+    // Complete any events remaining on the parent stack
+    for (const entry of ctx.parentStack) {
+      completeEvent(db, entry.id, "error", now);
+    }
+    // Complete the root agent_call
+    if (ctx.agentCallEventId) {
+      completeEvent(db, ctx.agentCallEventId, "error", now);
+    }
+  }
+
   /** Evict stale session contexts that exceed TTL.
    * Called periodically via setInterval to prevent stale entries from
-   * accumulating during idle periods. */
+   * accumulating during idle periods. Orphaned running events in the DB
+   * are completed with "error" status before the context is discarded. */
   function evictStaleContexts(): void {
     const now = Date.now();
     for (const [id, ctx] of sessionContexts) {
       if (now - ctx.lastActivityAt > SESSION_CONTEXT_TTL_MS) {
+        completeOrphanedEvents(ctx);
         sessionContexts.delete(id);
       }
     }
@@ -257,7 +268,9 @@ export async function registerHooksRoutes(
       );
       const toRemove = entries.length - SESSION_CONTEXT_MAX_SIZE;
       for (let i = 0; i < toRemove; i++) {
-        sessionContexts.delete(entries[i]![0]);
+        const entry = entries[i]!;
+        completeOrphanedEvents(entry[1]);
+        sessionContexts.delete(entry[0]);
       }
     }
   }
@@ -536,9 +549,9 @@ export async function registerHooksRoutes(
             // agent_call with "completed" session).
             //
             // If SessionEnd never fires (e.g. Claude Code crash), running
-            // events and parent stack entries remain until TTL eviction.
-            // They will appear as status: "running" in the UI until the
-            // context is evicted. SessionEnd is the authoritative cleanup path.
+            // events and parent stack entries remain until TTL eviction,
+            // at which point completeOrphanedEvents() closes them with
+            // status "error". SessionEnd is the authoritative cleanup path.
             if (debug && ctx.agentCallEventId) {
               console.log(
                 `[hooks] Stop: agent_call ${ctx.agentCallEventId} completion deferred to SessionEnd`

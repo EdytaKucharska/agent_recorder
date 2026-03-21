@@ -17,7 +17,9 @@
  */
 
 // Types — zero dependencies, safe to use everywhere
-// Note: StorageAdapter is @alpha and may change between minor versions.
+// WARNING: StorageAdapter is @alpha and WILL change between minor versions.
+// Consumers should expect breaking changes on this export until it is
+// promoted to @public. Pin to an exact version if you depend on it.
 export type {
   EventType,
   EventStatus,

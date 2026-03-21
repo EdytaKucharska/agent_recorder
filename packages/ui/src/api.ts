@@ -10,6 +10,12 @@ export interface SessionWithActivity extends Session {
 
 const BASE = "/api";
 
+/**
+ * Fetch JSON from the API with a 5-second timeout.
+ * Note: the timeout covers connection + first byte. If the server sends
+ * headers promptly but then stalls mid-body, abort() will not trigger.
+ * This is acceptable for the expected payload sizes (< 1 MB).
+ */
 async function fetchJson<T>(url: string): Promise<T> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 5000);

@@ -25,20 +25,25 @@ export function SessionList({ onSelect }: SessionListProps) {
 
   useEffect(() => {
     let cancelled = false;
-    let hasError = false;
+    let consecutiveErrors = 0;
+    const MAX_CONSECUTIVE_ERRORS = 3;
 
     async function load() {
-      if (hasError) return;
+      if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) return;
       try {
         const data = await getSessions();
         if (!cancelled) {
+          consecutiveErrors = 0;
           setSessions(data);
+          setError(null);
           setLoading(false);
         }
       } catch (err) {
         if (!cancelled) {
-          hasError = true;
-          setError(err instanceof Error ? err.message : "Failed to load");
+          consecutiveErrors++;
+          if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
+            setError(err instanceof Error ? err.message : "Failed to load");
+          }
           setLoading(false);
         }
       }
