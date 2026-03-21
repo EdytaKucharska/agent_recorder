@@ -95,7 +95,7 @@ export interface StorageAdapter {
     status: EventStatus,
     endedAt: string,
     outputJson?: string | null,
-    errorCategory?: string | null
+    errorCategory?: ErrorCategory | null
   ): BaseEvent | null;
   findRunningEvent(sessionId: string, toolName: string): BaseEvent | null;
 

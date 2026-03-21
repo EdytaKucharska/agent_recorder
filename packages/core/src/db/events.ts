@@ -178,6 +178,9 @@ export function updateEventStatus(
 }
 
 /** Complete a running event with output and status.
+ * Only updates events that are currently in "running" status to prevent
+ * duplicate deliveries from silently overwriting already-completed events.
+ * Returns null if the event doesn't exist or is not in "running" status.
  * When outputJson is omitted (undefined), preserves any existing output_json.
  * When outputJson is explicitly null, clears output_json to null.
  * When outputJson is a string, overwrites output_json with the new value. */
@@ -193,8 +196,8 @@ export function completeEvent(
   // Explicit null clears the field; a string overwrites it.
   const useCoalesce = outputJson === undefined;
   const sql = useCoalesce
-    ? `UPDATE events SET status = ?, ended_at = ?, error_category = ? WHERE id = ?`
-    : `UPDATE events SET status = ?, ended_at = ?, output_json = ?, error_category = ? WHERE id = ?`;
+    ? `UPDATE events SET status = ?, ended_at = ?, error_category = ? WHERE id = ? AND status = 'running'`
+    : `UPDATE events SET status = ?, ended_at = ?, output_json = ?, error_category = ? WHERE id = ? AND status = 'running'`;
 
   const stmt = db.prepare(sql);
   const result = useCoalesce

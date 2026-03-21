@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import type { BaseEvent } from "@agent-recorder/types";
 import { getSession, getSessionEvents, getEventCount } from "../api.js";
 import { EventRow } from "./EventRow.js";
@@ -13,7 +13,10 @@ export function SessionDetail({ sessionId }: SessionDetailProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [sessionStatus, setSessionStatus] = useState<string>("");
-  const [maxSequence, setMaxSequence] = useState(0);
+  // Use a ref for maxSequence so the polling interval doesn't tear down
+  // and re-create on every new event batch. This keeps the effective poll
+  // interval at a stable 3s rather than 3s + loadEvents latency.
+  const maxSequenceRef = useRef(0);
 
   const loadEvents = useCallback(
     async (after?: number) => {
@@ -32,7 +35,7 @@ export function SessionDetail({ sessionId }: SessionDetailProps) {
         setTotalCount(count.count);
         setSessionStatus(session.status);
         if (evts.length > 0) {
-          setMaxSequence(evts[evts.length - 1].sequence);
+          maxSequenceRef.current = evts[evts.length - 1].sequence;
         }
         setLoading(false);
       } catch (err) {
@@ -49,17 +52,17 @@ export function SessionDetail({ sessionId }: SessionDetailProps) {
     loadEvents();
   }, [loadEvents]);
 
-  // Auto-refresh: re-runs when error or sessionStatus changes,
-  // avoiding stale closures without refs.
+  // Auto-refresh: stable interval that reads maxSequence from a ref
+  // so it doesn't re-create on every poll cycle.
   useEffect(() => {
     if (error) return;
     if (sessionStatus && sessionStatus !== "active") return;
 
     const interval = setInterval(() => {
-      loadEvents(maxSequence);
+      loadEvents(maxSequenceRef.current);
     }, 3000);
     return () => clearInterval(interval);
-  }, [error, sessionStatus, maxSequence, loadEvents]);
+  }, [error, sessionStatus, loadEvents]);
 
   if (loading) return <div className="loading">Loading events...</div>;
   if (error) return <div className="error">Error: {error}</div>;

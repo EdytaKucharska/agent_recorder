@@ -42,9 +42,9 @@ describe("isToolResponseError", () => {
   });
 
   it("returns true for { error: { code: 123, message: 'fail' } }", () => {
-    expect(
-      isToolResponseError({ error: { code: 123, message: "fail" } })
-    ).toBe(true);
+    expect(isToolResponseError({ error: { code: 123, message: "fail" } })).toBe(
+      true
+    );
   });
 
   it("returns false for { error: 42 } (number, not string or object)", () => {
