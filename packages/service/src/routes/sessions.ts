@@ -60,6 +60,7 @@ export async function registerSessionsRoutes(
       type: "object" as const,
       required: ["id"],
       properties: { id: { type: "string" as const } },
+      additionalProperties: false,
     },
     body: {
       type: "object" as const,
@@ -69,6 +70,7 @@ export async function registerSessionsRoutes(
           enum: ["completed", "error", "cancelled"],
         },
       },
+      additionalProperties: false,
     },
   };
 

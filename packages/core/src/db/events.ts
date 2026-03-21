@@ -236,7 +236,9 @@ export function findRunningEvent(
     if (row) return rowToEvent(row);
   }
 
-  // Fallback: most recent running event by tool name
+  // TODO(parallel-tools): Fallback matches by tool name + most recent sequence,
+  // which is incorrect when parallel tools share the same name. The correlationId
+  // column (migration 007) is the right long-term fix.
   const stmt = db.prepare(`
     SELECT * FROM events
     WHERE session_id = ? AND tool_name = ? AND status = 'running'

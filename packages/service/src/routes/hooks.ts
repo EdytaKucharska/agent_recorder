@@ -97,6 +97,7 @@ const hookEventSchema = {
       end_reason: { type: "string" as const },
       statistics: { type: "object" as const },
     },
+    additionalProperties: false,
   },
 };
 
@@ -564,6 +565,13 @@ export async function registerHooksRoutes(
                 : payload.end_reason === "cancelled"
                   ? "cancelled"
                   : "completed";
+
+            // Complete any events still on the parent stack (interrupted
+            // subagents/skills that never received PostToolUse).
+            for (const entry of ctx.parentStack) {
+              completeEvent(db, entry.id, eventStatus, now);
+            }
+            ctx.parentStack.length = 0;
 
             // End the root agent_call and clean up
             if (ctx.agentCallEventId) {

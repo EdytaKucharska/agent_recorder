@@ -45,6 +45,7 @@ class UpstreamsCache {
   private registry: UpstreamsRegistry = {};
   private watcher: FSWatcher | null = null;
   private fileName: string;
+  private reloadTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(private path: string) {
     this.fileName = basename(path);
@@ -56,7 +57,7 @@ class UpstreamsCache {
     // Try watching the file directly first
     if (existsSync(this.path)) {
       try {
-        this.watcher = watch(this.path, () => this.reload());
+        this.watcher = watch(this.path, () => this.scheduleReload());
         return;
       } catch {
         // Fall through to parent dir watcher
@@ -68,20 +69,20 @@ class UpstreamsCache {
     try {
       this.watcher = watch(dir, (_, filename) => {
         if (filename === this.fileName) {
-          this.reload();
+          this.scheduleReload();
           // Upgrade to direct file watcher now that the file exists.
           // Note: there is a small TOCTOU window between close() and the
           // new watch() where a file change could be missed. The extra
-          // reload() after the swap mitigates this, but it is not atomic.
+          // scheduleReload() after the swap mitigates this, but it is not atomic.
           // Acceptable because this is a local config file that changes rarely.
           this.watcher?.close();
           try {
-            this.watcher = watch(this.path, () => this.reload());
-            this.reload();
+            this.watcher = watch(this.path, () => this.scheduleReload());
+            this.scheduleReload();
           } catch {
             // Keep parent dir watcher if upgrade fails
             this.watcher = watch(dir, (_, fn) => {
-              if (fn === this.fileName) this.reload();
+              if (fn === this.fileName) this.scheduleReload();
             });
           }
         }
@@ -89,6 +90,12 @@ class UpstreamsCache {
     } catch {
       // Parent dir doesn't exist — watcher is best-effort
     }
+  }
+
+  /** Debounce reload to avoid redundant reads from rapid fs.watch events */
+  private scheduleReload(): void {
+    if (this.reloadTimer) clearTimeout(this.reloadTimer);
+    this.reloadTimer = setTimeout(() => this.reload(), 50);
   }
 
   private reload(): void {
@@ -105,6 +112,8 @@ class UpstreamsCache {
   }
 
   close(): void {
+    if (this.reloadTimer) clearTimeout(this.reloadTimer);
+    this.reloadTimer = null;
     this.watcher?.close();
     this.watcher = null;
   }

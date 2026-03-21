@@ -61,6 +61,7 @@ export async function registerEventsRoutes(
         outputJson: { type: ["string", "null"] as const },
         errorCategory: { type: ["string", "null"] as const },
       },
+      additionalProperties: false,
     },
   };
 

@@ -91,6 +91,7 @@ export async function registerStdioRoutes(
         isError: { type: "boolean" as const },
         sessionId: { type: "string" as const },
       },
+      additionalProperties: false,
     },
   };
 
