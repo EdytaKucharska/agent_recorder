@@ -132,6 +132,7 @@ const dataLines = text
 ```
 
 This SSE parser assumes:
+
 - All data fits in memory (no streaming)
 - The last `data:` line is always the final JSON-RPC response
 - No multi-line SSE data fields
@@ -189,18 +190,18 @@ packages/
 
 ### What This Achieves
 
-| Package | Local-only? | Embeddable in agent? | Web-safe? |
-|---------|------------|---------------------|-----------|
-| `types` | No | Yes | Yes |
-| `storage` | Yes (SQLite) | No | No |
-| `recorder` | Yes (uses storage) | Partially (with custom storage adapter) | No |
-| `proxy-http` | No | Yes (Fastify plugin) | No (Node.js) |
-| `proxy-stdio` | No | Yes (standalone bin) | No (Node.js) |
-| `hooks` | No | Yes (Claude-specific) | No (Node.js) |
-| `daemon` | Yes | No | No |
-| `rest-api` | No | Yes (Fastify plugin) | No (Node.js) |
-| `cli` | Yes | No | No |
-| `ui` | No | Yes (React component) | Yes |
+| Package       | Local-only?        | Embeddable in agent?                    | Web-safe?    |
+| ------------- | ------------------ | --------------------------------------- | ------------ |
+| `types`       | No                 | Yes                                     | Yes          |
+| `storage`     | Yes (SQLite)       | No                                      | No           |
+| `recorder`    | Yes (uses storage) | Partially (with custom storage adapter) | No           |
+| `proxy-http`  | No                 | Yes (Fastify plugin)                    | No (Node.js) |
+| `proxy-stdio` | No                 | Yes (standalone bin)                    | No (Node.js) |
+| `hooks`       | No                 | Yes (Claude-specific)                   | No (Node.js) |
+| `daemon`      | Yes                | No                                      | No           |
+| `rest-api`    | No                 | Yes (Fastify plugin)                    | No (Node.js) |
+| `cli`         | Yes                | No                                      | No           |
+| `ui`          | No                 | Yes (React component)                   | Yes          |
 
 ### Key Architectural Principle
 
@@ -226,14 +227,22 @@ Create a `StorageAdapter` interface in `types/` so the recorder isn't hardcoded 
 // packages/types/src/storage.ts
 export interface StorageAdapter {
   insertEvent(event: InsertEventInput): RecordedEvent;
-  getEventsBySession(sessionId: string, options?: EventQueryOptions): RecordedEvent[];
+  getEventsBySession(
+    sessionId: string,
+    options?: EventQueryOptions
+  ): RecordedEvent[];
   createSession(id: string, startedAt: string): Session;
-  endSession(id: string, endedAt: string, status: SessionStatus): Session | null;
+  endSession(
+    id: string,
+    endedAt: string,
+    status: SessionStatus
+  ): Session | null;
   allocateSequence(sessionId: string): number;
 }
 ```
 
 Then `packages/storage/` provides `SqliteStorageAdapter implements StorageAdapter`. The recorder accepts `StorageAdapter` instead of `Database.Database`. This allows:
+
 - In-memory storage for tests (no SQLite needed)
 - Future cloud storage adapters
 - Embedding in agents that use their own persistence
@@ -263,7 +272,7 @@ class UpstreamsCache {
 
   private reload(): void {
     try {
-      this.registry = JSON.parse(fs.readFileSync(this.path, 'utf-8'));
+      this.registry = JSON.parse(fs.readFileSync(this.path, "utf-8"));
     } catch {
       // keep previous value
     }
@@ -285,19 +294,19 @@ class UpstreamsCache {
 // routes/hooks.ts
 const hookEventSchema = {
   body: {
-    type: 'object',
-    required: ['hook_type', 'session_id'],
+    type: "object",
+    required: ["hook_type", "session_id"],
     properties: {
-      hook_type: { type: 'string' },
-      session_id: { type: 'string' },
-      tool_name: { type: 'string' },
-      tool_input: { type: 'object' },
+      hook_type: { type: "string" },
+      session_id: { type: "string" },
+      tool_name: { type: "string" },
+      tool_input: { type: "object" },
       tool_response: {},
     },
   },
 } as const;
 
-app.post('/api/hooks', { schema: hookEventSchema }, async (request, reply) => {
+app.post("/api/hooks", { schema: hookEventSchema }, async (request, reply) => {
   // request.body is now validated
 });
 ```
@@ -312,11 +321,14 @@ export function redactJson(value: unknown, keys: string[]): unknown {
 
 function redactJsonInternal(value: unknown, lowerKeys: Set<string>): unknown {
   if (value === null || value === undefined) return value;
-  if (Array.isArray(value)) return value.map((item) => redactJsonInternal(item, lowerKeys));
+  if (Array.isArray(value))
+    return value.map((item) => redactJsonInternal(item, lowerKeys));
   if (typeof value === "object") {
     const result: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-      result[k] = lowerKeys.has(k.toLowerCase()) ? REDACTED_VALUE : redactJsonInternal(v, lowerKeys);
+      result[k] = lowerKeys.has(k.toLowerCase())
+        ? REDACTED_VALUE
+        : redactJsonInternal(v, lowerKeys);
     }
     return result;
   }
@@ -335,8 +347,12 @@ export interface DaemonContext {
   config: Config;
 }
 
-export async function startDaemon(options: DaemonOptions = {}): Promise<DaemonHandle> {
-  const context: DaemonContext = { /* ... */ };
+export async function startDaemon(
+  options: DaemonOptions = {}
+): Promise<DaemonHandle> {
+  const context: DaemonContext = {
+    /* ... */
+  };
 
   const app = await createServer({ ...context });
   // Pass context to health route instead of using module globals
@@ -350,6 +366,7 @@ Either:
 **Option A: Remove `packages/ui/` entirely** until there's a plan to build it. A placeholder package adds confusion. Add a `docs/ui-plan.md` instead.
 
 **Option B: Scaffold a minimal working UI** with:
+
 - Vite + React + TanStack Router
 - Session list page (calls `GET /api/sessions`)
 - Session detail page (calls `GET /api/sessions/:id/events`)
@@ -363,10 +380,17 @@ For the npm package, expose a clean embedding API:
 
 ```typescript
 // packages/dist/src/embed.ts
-export { createMcpProxy, type McpProxyOptions } from '@agent-recorder/proxy-http';
-export { createRestApi } from '@agent-recorder/rest-api';
-export { SqliteStorageAdapter } from '@agent-recorder/storage';
-export type { StorageAdapter, RecordedEvent, Session } from '@agent-recorder/types';
+export {
+  createMcpProxy,
+  type McpProxyOptions,
+} from "@agent-recorder/proxy-http";
+export { createRestApi } from "@agent-recorder/rest-api";
+export { SqliteStorageAdapter } from "@agent-recorder/storage";
+export type {
+  StorageAdapter,
+  RecordedEvent,
+  Session,
+} from "@agent-recorder/types";
 ```
 
 This gives agent developers a single import for embedding recording into their tools.
@@ -375,18 +399,18 @@ This gives agent developers a single import for embedding recording into their t
 
 ## Part 5: Priority Order
 
-| Priority | Change | Effort | Impact |
-|----------|--------|--------|--------|
-| **P0** | Fix redaction performance (4.5) | 30 min | Correctness |
-| **P0** | Add Fastify schema validation (4.4) | 2 hrs | Security |
-| **P1** | Replace module globals (4.6) | 1 hr | Testability |
-| **P1** | Cache upstreams registry (4.3) | 1 hr | Performance |
-| **P1** | Fix hierarchy — record PreToolUse + parent tracking (4.2) | 4 hrs | Core feature |
-| **P2** | Extract `types` package from `core` (Part 3) | 4 hrs | Architecture |
-| **P2** | Extract `StorageAdapter` interface (4.1) | 3 hrs | Extensibility |
-| **P2** | Build minimal working UI (4.7 Option B) | 8 hrs | User value |
-| **P3** | Full package restructuring (Part 3) | 2-3 days | Long-term clarity |
-| **P3** | Add `embed` export (4.8) | 2 hrs | Developer experience |
+| Priority | Change                                                    | Effort   | Impact               |
+| -------- | --------------------------------------------------------- | -------- | -------------------- |
+| **P0**   | Fix redaction performance (4.5)                           | 30 min   | Correctness          |
+| **P0**   | Add Fastify schema validation (4.4)                       | 2 hrs    | Security             |
+| **P1**   | Replace module globals (4.6)                              | 1 hr     | Testability          |
+| **P1**   | Cache upstreams registry (4.3)                            | 1 hr     | Performance          |
+| **P1**   | Fix hierarchy — record PreToolUse + parent tracking (4.2) | 4 hrs    | Core feature         |
+| **P2**   | Extract `types` package from `core` (Part 3)              | 4 hrs    | Architecture         |
+| **P2**   | Extract `StorageAdapter` interface (4.1)                  | 3 hrs    | Extensibility        |
+| **P2**   | Build minimal working UI (4.7 Option B)                   | 8 hrs    | User value           |
+| **P3**   | Full package restructuring (Part 3)                       | 2-3 days | Long-term clarity    |
+| **P3**   | Add `embed` export (4.8)                                  | 2 hrs    | Developer experience |
 
 ---
 

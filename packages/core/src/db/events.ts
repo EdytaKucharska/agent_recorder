@@ -190,6 +190,53 @@ export function updateEventStatus(
   return getEventById(db, id);
 }
 
+/** Complete a running event with output and status */
+export function completeEvent(
+  db: Database.Database,
+  id: string,
+  status: EventStatus,
+  endedAt: string,
+  outputJson?: string | null,
+  errorCategory?: string | null
+): BaseEvent | null {
+  const stmt = db.prepare(`
+    UPDATE events SET status = ?, ended_at = ?, output_json = COALESCE(?, output_json), error_category = ?
+    WHERE id = ?
+  `);
+  const result = stmt.run(
+    status,
+    endedAt,
+    outputJson ?? null,
+    errorCategory ?? null,
+    id
+  );
+
+  if (result.changes === 0) {
+    return null;
+  }
+
+  return getEventById(db, id);
+}
+
+/**
+ * Find the most recent "running" event for a given tool name in a session.
+ * Used to match PreToolUse → PostToolUse.
+ */
+export function findRunningEvent(
+  db: Database.Database,
+  sessionId: string,
+  toolName: string
+): BaseEvent | null {
+  const stmt = db.prepare(`
+    SELECT * FROM events
+    WHERE session_id = ? AND tool_name = ? AND status = 'running'
+    ORDER BY sequence DESC
+    LIMIT 1
+  `);
+  const row = stmt.get(sessionId, toolName) as EventRow | undefined;
+  return row ? rowToEvent(row) : null;
+}
+
 /** Filter options for event queries */
 export interface EventFilterOptions {
   /** Filter by tool name */

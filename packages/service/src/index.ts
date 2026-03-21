@@ -30,6 +30,7 @@ import { AutoWrapManager } from "./mcp/auto-wrap-manager.js";
 export { createServer, startServer } from "./server.js";
 export { createMcpProxy } from "./mcp/index.js";
 export { createSessionManager } from "./session-manager.js";
+export { createDaemonContext, type DaemonContext } from "./daemon-context.js";
 
 export interface DaemonHandle {
   shutdown: (status?: SessionStatus) => Promise<void>;
@@ -42,25 +43,27 @@ export interface DaemonOptions {
   daemon?: boolean;
 }
 
-// Track daemon state for health endpoint
-let daemonMode = false;
-let daemonSessionId: string | null = null;
-let daemonStartedAt: string | null = null;
-
 /**
- * Get daemon runtime info for health endpoint.
+ * @deprecated Use DaemonContext directly instead. Kept for backwards compatibility.
  */
 export function getDaemonInfo(): {
   mode: "daemon" | "foreground";
   sessionId: string | null;
   startedAt: string | null;
 } {
-  return {
-    mode: daemonMode ? "daemon" : "foreground",
-    sessionId: daemonSessionId,
-    startedAt: daemonStartedAt,
-  };
+  return { ...activeDaemonContext };
 }
+
+// Shared reference to the active daemon context (for getDaemonInfo backwards compat)
+let activeDaemonContext: {
+  mode: "daemon" | "foreground";
+  sessionId: string | null;
+  startedAt: string | null;
+} = {
+  mode: "foreground",
+  sessionId: null,
+  startedAt: null,
+};
 
 /**
  * Start the daemon with default configuration.
@@ -76,10 +79,10 @@ export async function startDaemon(
 
   const config = loadConfig();
   const paths = getDaemonPaths();
-  daemonMode = options.daemon ?? false;
+  const isDaemonMode = options.daemon ?? false;
 
   console.log("Starting Agent Recorder daemon...");
-  console.log(`Mode: ${daemonMode ? "daemon" : "foreground"}`);
+  console.log(`Mode: ${isDaemonMode ? "daemon" : "foreground"}`);
   console.log(`Database: ${config.dbPath}`);
   console.log(`REST API port: ${config.listenPort}`);
 
@@ -94,9 +97,15 @@ export async function startDaemon(
   const sessionManager = createSessionManager(db);
   const startedAt = new Date().toISOString();
 
-  // Store for health endpoint
-  daemonSessionId = sessionManager.sessionId;
-  daemonStartedAt = startedAt;
+  // Create daemon context (replaces module globals)
+  const daemonContext: import("./daemon-context.js").DaemonContext = {
+    mode: isDaemonMode ? "daemon" : "foreground",
+    sessionId: sessionManager.sessionId,
+    startedAt,
+  };
+
+  // Update shared reference for backwards-compatible getDaemonInfo()
+  activeDaemonContext = { ...daemonContext };
 
   // Initialize auto-wrap manager (fail-open: errors logged, not thrown)
   let autoWrapManager: AutoWrapManager | null = null;
@@ -115,10 +124,11 @@ export async function startDaemon(
     console.error("Continuing in manual wrap mode...");
   }
 
-  // Create and start REST API server (pass currentSessionId for /api/sessions/current)
+  // Create and start REST API server (pass currentSessionId and daemonContext)
   const app = await createServer({
     db,
     currentSessionId: sessionManager.sessionId,
+    daemonContext,
   });
   const actualListenPort = await startServer(app, config.listenPort);
 
@@ -154,7 +164,7 @@ export async function startDaemon(
   await proxy.start();
 
   // Write PID file only in daemon mode
-  if (daemonMode) {
+  if (isDaemonMode) {
     writePidFile(process.pid);
     console.log(`PID file: ${paths.pidFile}`);
   }
@@ -185,7 +195,7 @@ export async function startDaemon(
 
     // Clean up port file, PID file and lock
     removePortFile();
-    if (daemonMode) {
+    if (isDaemonMode) {
       removePidFile();
       releaseLock(paths.lockFile);
     }

@@ -10,23 +10,27 @@ const DEFAULT_MAX_LENGTH = 10240; // 10KB
  * Keys are matched case-insensitively.
  */
 export function redactJson(value: unknown, keys: string[]): unknown {
+  const lowerKeys = new Set(keys.map((k) => k.toLowerCase()));
+  return redactJsonInternal(value, lowerKeys);
+}
+
+function redactJsonInternal(value: unknown, lowerKeys: Set<string>): unknown {
   if (value === null || value === undefined) {
     return value;
   }
 
   if (Array.isArray(value)) {
-    return value.map((item) => redactJson(item, keys));
+    return value.map((item) => redactJsonInternal(item, lowerKeys));
   }
 
   if (typeof value === "object") {
     const result: Record<string, unknown> = {};
-    const lowerKeys = new Set(keys.map((k) => k.toLowerCase()));
 
     for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
       if (lowerKeys.has(k.toLowerCase())) {
         result[k] = REDACTED_VALUE;
       } else {
-        result[k] = redactJson(v, keys);
+        result[k] = redactJsonInternal(v, lowerKeys);
       }
     }
     return result;

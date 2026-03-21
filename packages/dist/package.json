@@ -12,6 +12,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./embed": {
+      "types": "./dist/embed.d.ts",
+      "import": "./dist/embed.js"
     }
   },
   "files": [
@@ -50,6 +54,9 @@
   "author": "Edyta Kucharska",
   "license": "MIT",
   "devDependencies": {
+    "@agent-recorder/core": "workspace:*",
+    "@agent-recorder/service": "workspace:*",
+    "@agent-recorder/types": "workspace:*",
     "@types/node": "^22.0.0"
   }
 }

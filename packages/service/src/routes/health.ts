@@ -3,21 +3,26 @@
  */
 
 import type { FastifyInstance } from "fastify";
-import { getDaemonInfo } from "../index.js";
+import type { DaemonContext } from "../daemon-context.js";
+
+interface HealthRoutesOptions {
+  daemonContext?: DaemonContext | undefined;
+}
 
 export async function registerHealthRoutes(
-  app: FastifyInstance
+  app: FastifyInstance,
+  options: HealthRoutesOptions = {}
 ): Promise<void> {
-  app.get("/api/health", async () => {
-    const daemonInfo = getDaemonInfo();
+  const { daemonContext } = options;
 
+  app.get("/api/health", async () => {
     return {
       status: "ok",
       pid: process.pid,
       uptime: process.uptime(),
-      mode: daemonInfo.mode,
-      sessionId: daemonInfo.sessionId,
-      startedAt: daemonInfo.startedAt,
+      mode: daemonContext?.mode ?? "foreground",
+      sessionId: daemonContext?.sessionId ?? null,
+      startedAt: daemonContext?.startedAt ?? null,
     };
   });
 }

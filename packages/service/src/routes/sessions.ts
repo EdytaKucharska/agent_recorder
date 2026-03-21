@@ -55,9 +55,27 @@ export async function registerSessionsRoutes(
     }
   });
 
+  const endSessionSchema = {
+    params: {
+      type: "object" as const,
+      required: ["id"],
+      properties: { id: { type: "string" as const } },
+    },
+    body: {
+      type: "object" as const,
+      properties: {
+        status: {
+          type: "string" as const,
+          enum: ["completed", "error", "cancelled"],
+        },
+      },
+    },
+  };
+
   // End a session
   app.post<{ Params: { id: string }; Body: { status?: SessionStatus } }>(
     "/api/sessions/:id/end",
+    { schema: endSessionSchema },
     async (request, reply) => {
       try {
         const { id } = request.params;

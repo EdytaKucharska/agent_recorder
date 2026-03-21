@@ -12,7 +12,7 @@ import {
   readProvidersFile,
   getDefaultProvidersPath,
 } from "@agent-recorder/core";
-import { readFileSync } from "node:fs";
+import { readFileSync, watch, type FSWatcher } from "node:fs";
 import {
   type JsonRpcRequest,
   type JsonRpcResponse,
@@ -36,17 +36,39 @@ interface UpstreamsRegistry {
 }
 
 /**
- * Load upstreams registry from file.
- * Returns empty object if file doesn't exist or is invalid.
+ * Cached upstreams registry.
+ * Loads from file once and watches for changes via fs.watch.
+ * Avoids readFileSync + JSON.parse on every incoming request.
  */
-function loadUpstreamsRegistry(upstreamsPath: string): UpstreamsRegistry {
-  try {
-    const content = readFileSync(upstreamsPath, "utf-8");
-    const registry = JSON.parse(content) as UpstreamsRegistry;
-    return registry ?? {};
-  } catch {
-    // File doesn't exist or invalid JSON - return empty registry
-    return {};
+class UpstreamsCache {
+  private registry: UpstreamsRegistry = {};
+  private watcher: FSWatcher | null = null;
+
+  constructor(private path: string) {
+    this.reload();
+    try {
+      this.watcher = watch(this.path, () => this.reload());
+    } catch {
+      // File doesn't exist yet — that's fine, watcher is optional
+    }
+  }
+
+  private reload(): void {
+    try {
+      const content = readFileSync(this.path, "utf-8");
+      this.registry = (JSON.parse(content) as UpstreamsRegistry) ?? {};
+    } catch {
+      // Keep previous value on error (file missing or invalid JSON)
+    }
+  }
+
+  get(key: string): UpstreamEntry | undefined {
+    return this.registry[key];
+  }
+
+  close(): void {
+    this.watcher?.close();
+    this.watcher = null;
   }
 }
 
@@ -337,6 +359,9 @@ export async function createMcpProxy(
     debugProxy,
   } = config;
 
+  // Initialize upstreams cache (replaces per-request readFileSync)
+  const upstreamsCache = new UpstreamsCache(upstreamsPath);
+
   // Load HTTP providers for hub mode
   const providersPath = getDefaultProvidersPath();
   const httpProviders = loadHttpProviders(providersPath, downstreamMcpUrl);
@@ -403,7 +428,7 @@ export async function createMcpProxy(
     }
 
     // Determine downstream URL based on router/hub mode logic
-    let finalDownstreamUrl: string | null = null;
+    let targetUrl: string | null = null;
     let finalUpstreamKey: string | null = upstreamKeyStr;
 
     // Hub mode: Parse namespaced tool name for tools/call
@@ -449,7 +474,7 @@ export async function createMcpProxy(
         }
 
         // Route to provider URL
-        finalDownstreamUrl = provider.url;
+        targetUrl = provider.url;
         finalUpstreamKey = parsed.providerId;
         // Rewrite tool name without namespace prefix
         toolName = parsed.toolName;
@@ -457,11 +482,10 @@ export async function createMcpProxy(
       }
     }
 
-    // Router mode: lookup upstream in registry
+    // Router mode: lookup upstream in cached registry
     let upstreamHeaders: Record<string, string> | undefined;
-    if (!finalDownstreamUrl && upstreamKeyStr) {
-      const registry = loadUpstreamsRegistry(upstreamsPath);
-      const upstream = registry[upstreamKeyStr];
+    if (!targetUrl && upstreamKeyStr) {
+      const upstream = upstreamsCache.get(upstreamKeyStr);
 
       if (!upstream) {
         return reply.code(404).send({
@@ -474,17 +498,17 @@ export async function createMcpProxy(
         });
       }
 
-      finalDownstreamUrl = upstream.url;
+      targetUrl = upstream.url;
       upstreamHeaders = upstream.headers;
     }
 
     // Legacy mode: use configured downstream URL
-    if (!finalDownstreamUrl && downstreamMcpUrl) {
-      finalDownstreamUrl = downstreamMcpUrl;
+    if (!targetUrl && downstreamMcpUrl) {
+      targetUrl = downstreamMcpUrl;
     }
 
     // No downstream configured
-    if (!finalDownstreamUrl) {
+    if (!targetUrl) {
       return reply.code(503).send({
         jsonrpc: "2.0",
         error: {
@@ -510,7 +534,7 @@ export async function createMcpProxy(
     // Log routing decision if debug enabled
     if (debugProxy) {
       console.log(
-        `[PROXY] Routing ${body.method} to ${finalDownstreamUrl} (upstream: ${finalUpstreamKey ?? "legacy"})`
+        `[PROXY] Routing ${body.method} to ${targetUrl} (upstream: ${finalUpstreamKey ?? "legacy"})`
       );
     }
 
@@ -519,9 +543,9 @@ export async function createMcpProxy(
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
     // Forward request to downstream
-    let downstreamResponse: Response;
+    let upstreamResponse: Response;
     try {
-      downstreamResponse = await fetch(finalDownstreamUrl, {
+      upstreamResponse = await fetch(targetUrl, {
         method: "POST",
         headers: forwardHeaders,
         body: JSON.stringify(body),
@@ -570,7 +594,7 @@ export async function createMcpProxy(
       console.error(
         `Failed to forward request to downstream: ${errorName}: ${errorMessage}`
       );
-      console.error(`  Target URL: ${finalDownstreamUrl}`);
+      console.error(`  Target URL: ${targetUrl}`);
       console.error(`  Upstream key: ${finalUpstreamKey ?? "(legacy mode)"}`);
 
       return reply.code(502).send({
@@ -586,21 +610,21 @@ export async function createMcpProxy(
     clearTimeout(timeoutId);
 
     // Check for HTTP-level errors before parsing response body
-    if (!downstreamResponse.ok) {
-      const statusCode = downstreamResponse.status;
-      const statusText = downstreamResponse.statusText;
+    if (!upstreamResponse.ok) {
+      const statusCode = upstreamResponse.status;
+      const statusText = upstreamResponse.statusText;
 
       // Try to read response body for more details
       let errorBody = "";
       try {
-        errorBody = await downstreamResponse.text();
+        errorBody = await upstreamResponse.text();
       } catch {
         // Ignore if we can't read body
       }
 
       // Log detailed error
       console.error(`Downstream returned HTTP ${statusCode} ${statusText}`);
-      console.error(`  Target URL: ${finalDownstreamUrl}`);
+      console.error(`  Target URL: ${targetUrl}`);
       console.error(`  Upstream key: ${finalUpstreamKey ?? "(legacy mode)"}`);
       if (debugProxy && errorBody) {
         console.error(`  Response body: ${errorBody.slice(0, 200)}`);
@@ -658,7 +682,7 @@ export async function createMcpProxy(
     }
 
     // Check response content type to handle SSE vs JSON
-    const contentType = downstreamResponse.headers.get("content-type") ?? "";
+    const contentType = upstreamResponse.headers.get("content-type") ?? "";
     const isSSE = contentType.includes("text/event-stream");
 
     // Parse downstream response
@@ -666,7 +690,7 @@ export async function createMcpProxy(
     try {
       if (isSSE) {
         // Handle SSE response - extract JSON from the stream
-        const text = await downstreamResponse.text();
+        const text = await upstreamResponse.text();
         // SSE format: "event: message\ndata: {...}\n\n"
         // Extract the last complete JSON object from the data lines
         const dataLines = text
@@ -682,7 +706,7 @@ export async function createMcpProxy(
         const lastData = dataLines[dataLines.length - 1];
         responseBody = JSON.parse(lastData!) as JsonRpcResponse;
       } else {
-        responseBody = (await downstreamResponse.json()) as JsonRpcResponse;
+        responseBody = (await upstreamResponse.json()) as JsonRpcResponse;
       }
     } catch (parseError) {
       console.error("Failed to parse downstream response");
@@ -729,7 +753,7 @@ export async function createMcpProxy(
     }
 
     // Preserve downstream HTTP status code and return response unchanged
-    reply.code(downstreamResponse.status);
+    reply.code(upstreamResponse.status);
     reply.header("Content-Type", "application/json");
     return reply.send(responseBody);
   });
@@ -740,6 +764,7 @@ export async function createMcpProxy(
   };
 
   const close = async () => {
+    upstreamsCache.close();
     await app.close();
   };
 
