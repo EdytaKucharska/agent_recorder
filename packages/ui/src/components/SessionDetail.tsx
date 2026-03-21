@@ -120,8 +120,26 @@ interface EventTreeProps {
   depth: number;
 }
 
+/** Max rendering depth to prevent stack overflow from pathological nesting */
+const MAX_TREE_DEPTH = 20;
+
 function EventTree({ event, childMap, depth }: EventTreeProps) {
   const children = childMap.get(event.id) ?? [];
+
+  if (depth >= MAX_TREE_DEPTH && children.length > 0) {
+    return (
+      <div className="event-tree">
+        <EventRow event={event} depth={depth} />
+        <div
+          className="event-tree-truncated"
+          style={{ paddingLeft: (depth + 1) * 16 }}
+        >
+          ▶ {children.length} more nested event
+          {children.length !== 1 ? "s" : ""}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="event-tree">

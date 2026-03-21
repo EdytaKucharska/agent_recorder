@@ -74,8 +74,9 @@ export function insertEvent(
     INSERT INTO events (
       id, session_id, parent_event_id, sequence, event_type,
       agent_role, agent_name, skill_name, tool_name, mcp_method, upstream_key,
+      correlation_id,
       started_at, ended_at, status, input_json, output_json, error_category, created_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
   `);
 
   stmt.run(
@@ -90,6 +91,7 @@ export function insertEvent(
     event.toolName ?? null,
     event.mcpMethod ?? null,
     event.upstreamKey ?? null,
+    event.correlationId ?? null,
     event.startedAt,
     event.endedAt ?? null,
     event.status,

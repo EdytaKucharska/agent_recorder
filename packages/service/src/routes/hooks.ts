@@ -122,16 +122,28 @@ function truncateForLog(value: unknown, maxLength = 100): string {
   return str.slice(0, maxLength) + "...";
 }
 
-/** Format tool call for logging */
+/** Format tool call for logging, with redaction applied to prevent
+ * sensitive keys from appearing in daemon logs. */
 function formatToolCallLog(
   toolName: string,
   upstreamKey: string | null,
   input: Record<string, unknown> | undefined,
-  output: unknown | undefined
+  output: unknown | undefined,
+  redactKeys: string[]
 ): string {
   const server = upstreamKey ?? "builtin";
-  const inputSummary = input ? truncateForLog(input, 150) : "(no input)";
-  const outputSummary = output ? truncateForLog(output, 150) : "(no output)";
+  const inputSummary = input
+    ? truncateForLog(
+        redactKeys.length > 0 ? redactAndTruncate(input, redactKeys) : input,
+        150
+      )
+    : "(no input)";
+  const outputSummary = output
+    ? truncateForLog(
+        redactKeys.length > 0 ? redactAndTruncate(output, redactKeys) : output,
+        150
+      )
+    : "(no output)";
 
   return `[${server}] ${toolName}\n  Input:  ${inputSummary}\n  Output: ${outputSummary}`;
 }
@@ -534,7 +546,7 @@ export async function registerHooksRoutes(
             const isMcpTool = upstreamKey && upstreamKey !== "builtin";
             if (isMcpTool || debug) {
               console.log(
-                `[hooks] ${formatToolCallLog(cleanName, upstreamKey, payload.tool_input, payload.tool_response)}`
+                `[hooks] ${formatToolCallLog(cleanName, upstreamKey, payload.tool_input, payload.tool_response, redactKeys)}`
               );
             }
             break;
