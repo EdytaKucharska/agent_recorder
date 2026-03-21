@@ -14,6 +14,9 @@ export function SessionDetail({ sessionId }: SessionDetailProps) {
   const [error, setError] = useState<string | null>(null);
   const [sessionStatus, setSessionStatus] = useState<string>("");
   const sessionStatusRef = useRef(sessionStatus);
+  // errorRef mirrors the error state so the setInterval callback can read
+  // the latest value without a stale closure. Without this, the interval
+  // captures the initial null and never stops retrying after an error.
   const errorRef = useRef<string | null>(null);
 
   // Keep refs in sync with state

@@ -51,8 +51,14 @@ body {
 .app-header h1 {
   font-size: 18px;
   font-weight: 600;
-  cursor: pointer;
   color: var(--accent);
+}
+
+.nav-home-button {
+  all: unset;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
 }
 
 .back-button {

@@ -18,7 +18,14 @@ async function fetchJson<T>(url: string): Promise<T> {
     if (!res.ok) {
       throw new Error(`API error: ${res.status} ${res.statusText}`);
     }
-    return res.json() as Promise<T>;
+    // Read as text first to guard against non-JSON responses (e.g. HTML
+    // error pages from a reverse proxy). Avoids cryptic SyntaxError.
+    const text = await res.text();
+    try {
+      return JSON.parse(text) as T;
+    } catch {
+      throw new Error(`API error: non-JSON response: ${text.slice(0, 200)}`);
+    }
   } finally {
     clearTimeout(timeout);
   }

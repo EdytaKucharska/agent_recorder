@@ -387,4 +387,28 @@ describe("Hooks API — SubagentStop + PostToolUse deduplication", () => {
     const afterEnd = getEventById(db, agentCallId);
     expect(afterEnd!.status).toBe("success");
   });
+
+  it("marks session and agent_call as cancelled when end_reason is cancelled", async () => {
+    const sessionId = randomUUID();
+
+    await sendHook(app, {
+      hook_type: "SessionStart",
+      session_id: sessionId,
+    });
+
+    const events = getEventsBySession(db, sessionId);
+    const agentCallId = events[0]!.id;
+
+    await sendHook(app, {
+      hook_type: "SessionEnd",
+      session_id: sessionId,
+      end_reason: "cancelled",
+    });
+
+    const afterEnd = getEventById(db, agentCallId);
+    expect(afterEnd!.status).toBe("cancelled");
+
+    const session = getSessionById(db, sessionId);
+    expect(session!.status).toBe("cancelled");
+  });
 });

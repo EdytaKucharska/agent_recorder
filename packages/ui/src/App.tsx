@@ -10,7 +10,14 @@ export function App() {
   return (
     <div className="app">
       <header className="app-header">
-        <h1 onClick={() => setSelectedSessionId(null)}>Agent Recorder</h1>
+        <h1>
+          <button
+            className="nav-home-button"
+            onClick={() => setSelectedSessionId(null)}
+          >
+            Agent Recorder
+          </button>
+        </h1>
         {selectedSessionId && (
           <button
             className="back-button"

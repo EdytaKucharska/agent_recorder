@@ -227,4 +227,10 @@ describe("findRunningEvent", () => {
     const result = findRunningEvent(db, sessionId, "TestTool");
     expect(result).toBeNull();
   });
+
+  // Documenting a known limitation: if parallel tool calls share the same
+  // name, findRunningEvent matches the most recent by sequence, which may
+  // complete the wrong event. Claude Code currently runs tools sequentially,
+  // so this hasn't been an issue in practice.
+  it.todo("parallel same-name tool calls may match the wrong running event");
 });

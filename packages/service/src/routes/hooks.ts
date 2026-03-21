@@ -221,7 +221,9 @@ export async function registerHooksRoutes(
   // Each call to registerHooksRoutes gets its own isolated map.
   const sessionContexts = new Map<string, SessionContext>();
 
-  /** Evict stale session contexts that exceed TTL */
+  /** Evict stale session contexts that exceed TTL.
+   * Called both on-demand (when adding new sessions) and periodically
+   * to prevent stale entries from accumulating during idle periods. */
   function evictStaleContexts(): void {
     const now = Date.now();
     for (const [id, ctx] of sessionContexts) {
@@ -258,6 +260,14 @@ export async function registerHooksRoutes(
     return ctx;
   }
 
+  // Periodic eviction prevents stale contexts from accumulating when
+  // the daemon is idle (no new sessions triggering on-demand eviction).
+  const evictionInterval = setInterval(
+    evictStaleContexts,
+    SESSION_CONTEXT_TTL_MS / 2
+  );
+  app.addHook("onClose", () => clearInterval(evictionInterval));
+
   // Receive hook events from Claude Code
   app.post<{ Body: HookEventPayload }>(
     "/api/hooks",
@@ -277,6 +287,20 @@ export async function registerHooksRoutes(
         // Ensure session exists
         const session = getOrCreateSession(db, payload.session_id);
         const ctx = getSessionContext(payload.session_id);
+
+        // Warn if a tool/end hook arrives before SessionStart.
+        // The session row exists (getOrCreateSession handles that) but
+        // ctx.agentCallEventId will be null, so tool events will have no
+        // parent and appear as disconnected root events.
+        if (
+          !ctx.agentCallEventId &&
+          payload.hook_type !== "SessionStart" &&
+          payload.hook_type !== "Stop"
+        ) {
+          console.warn(
+            `[hooks] ${payload.hook_type} received for session ${payload.session_id} before SessionStart — tool events will lack parent context`
+          );
+        }
 
         // Handle different hook types
         switch (payload.hook_type) {
@@ -491,6 +515,14 @@ export async function registerHooksRoutes(
             // subsequent tool calls are no longer nested under it.
             // Does NOT complete the event — PostToolUse handles completion
             // with the actual output and error status from the tool response.
+            //
+            // Known limitation: matching is by tool name (e.g. "Agent").
+            // If two nested subagents share the same name, this pops the
+            // most-recent match, which may be the inner one when the outer
+            // one's SubagentStop fires first. Claude Code's hook API does
+            // not expose a correlation ID, so full correctness for this
+            // edge case is not achievable. See also the findRunningEvent
+            // caveat in packages/core/src/db/events.ts.
             if (ctx.parentStack.length > 0) {
               let matchIdx = ctx.parentStack.length - 1;
 
@@ -518,10 +550,23 @@ export async function registerHooksRoutes(
           case "SessionEnd": {
             const now = new Date().toISOString();
 
+            // Map end_reason to event and session status.
+            // Claude Code may send "completed", "error", or "cancelled" (Ctrl-C).
+            const eventStatus: EventStatus =
+              payload.end_reason === "error"
+                ? "error"
+                : payload.end_reason === "cancelled"
+                  ? "cancelled"
+                  : "success";
+            const sessionStatus: SessionStatus =
+              payload.end_reason === "error"
+                ? "error"
+                : payload.end_reason === "cancelled"
+                  ? "cancelled"
+                  : "completed";
+
             // End the root agent_call and clean up
             if (ctx.agentCallEventId) {
-              const eventStatus: EventStatus =
-                payload.end_reason === "error" ? "error" : "success";
               completeEvent(db, ctx.agentCallEventId, eventStatus, now);
 
               if (debug) {
@@ -535,8 +580,6 @@ export async function registerHooksRoutes(
             }
 
             // End the session in the database
-            const sessionStatus: SessionStatus =
-              payload.end_reason === "error" ? "error" : "completed";
             endSession(db, session.id, now, sessionStatus);
 
             // Clean up context
