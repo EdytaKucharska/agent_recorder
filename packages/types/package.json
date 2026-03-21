@@ -18,6 +18,9 @@
   "files": [
     "dist"
   ],
+  "devDependencies": {
+    "typescript": "^5.5.0"
+  },
   "author": "Edyta Kucharska",
   "license": "MIT"
 }

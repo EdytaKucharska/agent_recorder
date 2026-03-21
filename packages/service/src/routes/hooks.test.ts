@@ -200,10 +200,15 @@ describe("Hooks API — PreToolUse → PostToolUse pairing", () => {
       hook_type: "PreToolUse",
       session_id: sessionId,
     });
-    expect(res.statusCode).toBe(400);
+    // Fail-open: returns 200 with warning instead of 400 to never block Claude
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({
+      ok: true,
+      warning: "missing_tool_name",
+    });
   });
 
-  it("returns 400 when PostToolUse has no tool_name", async () => {
+  it("returns 200 with warning when PostToolUse has no tool_name", async () => {
     const sessionId = randomUUID();
 
     await sendHook(app, {
@@ -215,7 +220,12 @@ describe("Hooks API — PreToolUse → PostToolUse pairing", () => {
       hook_type: "PostToolUse",
       session_id: sessionId,
     });
-    expect(res.statusCode).toBe(400);
+    // Fail-open: returns 200 with warning instead of 400 to never block Claude
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({
+      ok: true,
+      warning: "missing_tool_name",
+    });
   });
 });
 

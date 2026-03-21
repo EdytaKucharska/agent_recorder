@@ -410,7 +410,13 @@ export async function registerHooksRoutes(
 
           case "PreToolUse": {
             if (!payload.tool_name) {
-              return reply.code(400).send({ error: "Missing tool_name" });
+              // Fail open — never block Claude with a 400
+              console.warn(
+                `[hooks] PreToolUse missing tool_name for session ${payload.session_id}`
+              );
+              return reply
+                .code(200)
+                .send({ ok: true, warning: "missing_tool_name" });
             }
 
             const { eventType, cleanName, upstreamKey } = parseToolName(
@@ -439,6 +445,10 @@ export async function registerHooksRoutes(
               toolName: cleanName,
               mcpMethod,
               upstreamKey,
+              // correlationId: not yet populated — Claude Code's hook API
+              // does not expose a correlation ID. The DB column (migration 007)
+              // and findRunningEvent support are ready; set this field once
+              // the hook payload includes a correlation identifier.
               startedAt: now,
               status: "running",
               inputJson: payload.tool_input
@@ -463,7 +473,13 @@ export async function registerHooksRoutes(
 
           case "PostToolUse": {
             if (!payload.tool_name) {
-              return reply.code(400).send({ error: "Missing tool_name" });
+              // Fail open — never block Claude with a 400
+              console.warn(
+                `[hooks] PostToolUse missing tool_name for session ${payload.session_id}`
+              );
+              return reply
+                .code(200)
+                .send({ ok: true, warning: "missing_tool_name" });
             }
 
             const { eventType, cleanName, upstreamKey } = parseToolName(

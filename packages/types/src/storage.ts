@@ -97,7 +97,11 @@ export interface StorageAdapter {
     outputJson?: string | null,
     errorCategory?: ErrorCategory | null
   ): BaseEvent | null;
-  findRunningEvent(sessionId: string, toolName: string): BaseEvent | null;
+  findRunningEvent(
+    sessionId: string,
+    toolName: string,
+    correlationId?: string | null
+  ): BaseEvent | null;
 
   // Sequence operations
   allocateSequence(sessionId: string): number;
