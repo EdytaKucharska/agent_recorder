@@ -88,6 +88,8 @@ const hookEventSchema = {
       transcript_path: { type: "string" as const },
       tool_name: { type: "string" as const },
       tool_input: { type: "object" as const },
+      // Empty schema: tool responses are arbitrary (strings, objects, arrays, etc.)
+      // so we intentionally accept any JSON value here.
       tool_response: {},
       subagent_type: { type: "string" as const },
       message: { type: "string" as const },
@@ -312,7 +314,7 @@ export async function registerHooksRoutes(
 
           case "PreToolUse": {
             if (!payload.tool_name) {
-              break;
+              return reply.code(400).send({ error: "Missing tool_name" });
             }
 
             const { eventType, cleanName, upstreamKey } = parseToolName(
@@ -375,8 +377,9 @@ export async function registerHooksRoutes(
 
             // Determine status from tool response
             const responseIsError = isToolResponseError(payload.tool_response);
-            const eventStatus: import("@agent-recorder/core").EventStatus =
-              responseIsError ? "error" : "success";
+            const eventStatus: EventStatus = responseIsError
+              ? "error"
+              : "success";
             const outputJsonStr = payload.tool_response
               ? redactAndTruncate(payload.tool_response, redactKeys)
               : null;
@@ -401,7 +404,9 @@ export async function registerHooksRoutes(
                 errorCategory
               );
 
-              // Pop from parent stack if this was a subagent/skill
+              // Pop from parent stack if still present. SubagentStop may
+              // have already removed this entry; the splice is a safe no-op
+              // if the entry is not found.
               if (eventType === "subagent_call" || eventType === "skill_call") {
                 for (let i = ctx.parentStack.length - 1; i >= 0; i--) {
                   if (ctx.parentStack[i]!.id === runningEvent.id) {
@@ -467,30 +472,26 @@ export async function registerHooksRoutes(
           }
 
           case "Stop": {
-            // Agent stopped — may be success or user cancellation (Ctrl+C).
-            // Since the Stop hook carries no end_reason, mark as "cancelled"
-            // to distinguish from SessionEnd which provides explicit status.
-            if (ctx.agentCallEventId) {
-              const now = new Date().toISOString();
-              completeEvent(db, ctx.agentCallEventId, "cancelled", now);
-              if (debug) {
-                console.log(
-                  `[hooks] Stop: completed agent_call ${ctx.agentCallEventId} as cancelled`
-                );
-              }
-              // Clear to prevent double-completion in SessionEnd
-              ctx.agentCallEventId = null;
+            // Stop fires for both normal completions and user cancellations.
+            // It does not carry an end_reason, so we cannot determine the
+            // actual outcome here. SessionEnd always follows Stop and has the
+            // authoritative end_reason, so we defer agent_call completion to
+            // SessionEnd to avoid status inconsistency (e.g. "cancelled"
+            // agent_call with "completed" session).
+            if (debug && ctx.agentCallEventId) {
+              console.log(
+                `[hooks] Stop: agent_call ${ctx.agentCallEventId} completion deferred to SessionEnd`
+              );
             }
             break;
           }
 
           case "SubagentStop": {
-            // Find and remove the matching subagent from the parent stack.
-            // Search from the top (most recent) to handle nested subagents.
+            // Pop the matching subagent from the parent stack so that
+            // subsequent tool calls are no longer nested under it.
+            // Does NOT complete the event — PostToolUse handles completion
+            // with the actual output and error status from the tool response.
             if (ctx.parentStack.length > 0) {
-              // If we have a tool_name hint, match by toolName stored in the
-              // stack entry (pure in-memory lookup, no DB queries needed).
-              // Otherwise fall back to the top of the stack.
               let matchIdx = ctx.parentStack.length - 1;
 
               if (payload.tool_name) {
@@ -505,11 +506,9 @@ export async function registerHooksRoutes(
 
               const matchedEntry = ctx.parentStack[matchIdx]!;
               ctx.parentStack.splice(matchIdx, 1);
-              const now = new Date().toISOString();
-              completeEvent(db, matchedEntry.id, "success", now);
               if (debug) {
                 console.log(
-                  `[hooks] SubagentStop: completed ${matchedEntry.id} (${payload.subagent_type ?? "unknown"})`
+                  `[hooks] SubagentStop: popped ${matchedEntry.id} from parent stack (${payload.subagent_type ?? "unknown"}), completion deferred to PostToolUse`
                 );
               }
             }
