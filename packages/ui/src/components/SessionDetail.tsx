@@ -38,7 +38,7 @@ export function SessionDetail({ sessionId }: SessionDetailProps) {
         setTotalCount(count.count);
         setSessionStatus(session.status);
         if (evts.length > 0) {
-          maxSequenceRef.current = evts[evts.length - 1].sequence;
+          maxSequenceRef.current = evts.at(-1)!.sequence;
         }
         setLoading(false);
       } catch (err) {
@@ -138,7 +138,7 @@ function EventTree({ event, childMap, depth }: EventTreeProps) {
           style={{ paddingLeft: (depth + 1) * 16 }}
         >
           ▶ {children.length} more nested event
-          {children.length !== 1 ? "s" : ""}
+          {children.length !== 1 ? "s" : ""} [max depth reached]
         </div>
       </div>
     );

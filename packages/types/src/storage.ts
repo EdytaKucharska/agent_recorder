@@ -64,6 +64,10 @@ export interface EventFilterOptions {
  * backends but is not yet implemented. The current SQLite functions in
  * `@agent-recorder/core` take `Database.Database` directly. Do not depend
  * on this interface in production code.
+ *
+ * Note: All methods return bare values (not `Promise<T>`), making this
+ * sync-only. Async backends (PostgreSQL, cloud) would need a wrapper or
+ * a future `AsyncStorageAdapter` interface.
  */
 export interface StorageAdapter {
   // Session operations
