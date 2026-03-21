@@ -70,15 +70,6 @@ importers:
 
   packages/dist:
     dependencies:
-      '@agent-recorder/core':
-        specifier: workspace:*
-        version: link:../core
-      '@agent-recorder/service':
-        specifier: workspace:*
-        version: link:../service
-      '@agent-recorder/types':
-        specifier: workspace:*
-        version: link:../types
       better-sqlite3:
         specifier: ^11.7.0
         version: 11.10.0
@@ -98,6 +89,15 @@ importers:
         specifier: ^18.3.1
         version: 18.3.1
     devDependencies:
+      '@agent-recorder/core':
+        specifier: workspace:*
+        version: link:../core
+      '@agent-recorder/service':
+        specifier: workspace:*
+        version: link:../service
+      '@agent-recorder/types':
+        specifier: workspace:*
+        version: link:../types
       '@types/node':
         specifier: ^22.0.0
         version: 22.19.3

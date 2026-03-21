@@ -32,9 +32,6 @@
     "build:dist": "pnpm run bundle"
   },
   "dependencies": {
-    "@agent-recorder/core": "workspace:*",
-    "@agent-recorder/service": "workspace:*",
-    "@agent-recorder/types": "workspace:*",
     "better-sqlite3": "^11.7.0",
     "commander": "^13.0.0",
     "fastify": "^5.0.0",
@@ -57,6 +54,9 @@
   "author": "Edyta Kucharska",
   "license": "MIT",
   "devDependencies": {
+    "@agent-recorder/core": "workspace:*",
+    "@agent-recorder/service": "workspace:*",
+    "@agent-recorder/types": "workspace:*",
     "@types/node": "^22.0.0"
   }
 }
