@@ -44,28 +44,6 @@ export interface DaemonOptions {
 }
 
 /**
- * @deprecated Use DaemonContext directly instead. Kept for backwards compatibility.
- */
-export function getDaemonInfo(): {
-  mode: "daemon" | "foreground";
-  sessionId: string | null;
-  startedAt: string | null;
-} {
-  return { ...activeDaemonContext };
-}
-
-// Shared reference to the active daemon context (for getDaemonInfo backwards compat)
-let activeDaemonContext: {
-  mode: "daemon" | "foreground";
-  sessionId: string | null;
-  startedAt: string | null;
-} = {
-  mode: "foreground",
-  sessionId: null,
-  startedAt: null,
-};
-
-/**
  * Start the daemon with default configuration.
  * Used by CLI and for direct execution.
  *
@@ -104,9 +82,6 @@ export async function startDaemon(
     startedAt,
   };
 
-  // Update shared reference for backwards-compatible getDaemonInfo()
-  activeDaemonContext = { ...daemonContext };
-
   // Initialize auto-wrap manager (fail-open: errors logged, not thrown)
   let autoWrapManager: AutoWrapManager | null = null;
   try {
@@ -129,6 +104,7 @@ export async function startDaemon(
     db,
     currentSessionId: sessionManager.sessionId,
     daemonContext,
+    redactKeys: config.redactKeys,
   });
   const actualListenPort = await startServer(app, config.listenPort);
 

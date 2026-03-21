@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import type { SessionWithActivity } from "../api.js";
 import { getSessions } from "../api.js";
+import { formatDuration } from "../utils.js";
 
 interface SessionListProps {
   onSelect: (sessionId: string) => void;
@@ -8,18 +9,6 @@ interface SessionListProps {
 
 function formatTime(iso: string): string {
   return new Date(iso).toLocaleString();
-}
-
-function formatDuration(startedAt: string, endedAt: string | null): string {
-  const start = new Date(startedAt).getTime();
-  const end = endedAt ? new Date(endedAt).getTime() : Date.now();
-  const seconds = Math.floor((end - start) / 1000);
-  if (seconds < 60) return `${seconds}s`;
-  const minutes = Math.floor(seconds / 60);
-  const remainingSec = seconds % 60;
-  if (minutes < 60) return `${minutes}m ${remainingSec}s`;
-  const hours = Math.floor(minutes / 60);
-  return `${hours}h ${minutes % 60}m`;
 }
 
 const STATUS_COLORS: Record<string, string> = {

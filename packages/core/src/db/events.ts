@@ -190,7 +190,10 @@ export function updateEventStatus(
   return getEventById(db, id);
 }
 
-/** Complete a running event with output and status */
+/** Complete a running event with output and status.
+ * Note: COALESCE(?, output_json) preserves existing output_json if the new
+ * value is NULL. This means you cannot explicitly clear output_json to null
+ * once set — by design, since partial data is better than lost data. */
 export function completeEvent(
   db: Database.Database,
   id: string,
@@ -221,6 +224,12 @@ export function completeEvent(
 /**
  * Find the most recent "running" event for a given tool name in a session.
  * Used to match PreToolUse → PostToolUse.
+ *
+ * Known limitation: if the same tool fires in parallel, this matches the most
+ * recent instance by sequence. PostToolUse may complete the wrong event.
+ * This assumes sequential tool execution per session, which holds for Claude
+ * Code's current architecture. If parallel tool use is added, this should
+ * match by a correlation ID instead.
  */
 export function findRunningEvent(
   db: Database.Database,

@@ -33,10 +33,14 @@ export function SessionDetail({ sessionId }: SessionDetailProps) {
 
   useEffect(() => {
     loadEvents();
-    // Auto-refresh every 3 seconds for active sessions
-    const interval = setInterval(loadEvents, 3000);
+    // Auto-refresh every 3 seconds only for active sessions
+    const interval = setInterval(() => {
+      // Stop polling once session is no longer active
+      if (sessionStatus && sessionStatus !== "active") return;
+      loadEvents();
+    }, 3000);
     return () => clearInterval(interval);
-  }, [loadEvents]);
+  }, [loadEvents, sessionStatus]);
 
   if (loading) return <div className="loading">Loading events...</div>;
   if (error) return <div className="error">Error: {error}</div>;

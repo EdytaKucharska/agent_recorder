@@ -21,8 +21,12 @@ async function fetchJson<T>(url: string): Promise<T> {
 export async function getSessions(
   status?: SessionStatus
 ): Promise<SessionWithActivity[]> {
-  const params = status ? `?status=${status}` : "";
-  return fetchJson<SessionWithActivity[]>(`${BASE}/sessions${params}`);
+  const params = new URLSearchParams();
+  if (status) params.set("status", status);
+  const qs = params.toString();
+  return fetchJson<SessionWithActivity[]>(
+    `${BASE}/sessions${qs ? `?${qs}` : ""}`
+  );
 }
 
 export async function getSession(id: string): Promise<Session> {
@@ -45,8 +49,4 @@ export async function getSessionEvents(
 
 export async function getEventCount(id: string): Promise<{ count: number }> {
   return fetchJson<{ count: number }>(`${BASE}/sessions/${id}/events/count`);
-}
-
-export async function getHealth(): Promise<Record<string, unknown>> {
-  return fetchJson<Record<string, unknown>>(`${BASE}/health`);
 }

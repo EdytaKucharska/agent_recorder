@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import type { BaseEvent } from "@agent-recorder/types";
+import { formatDurationMs } from "../utils.js";
 
 interface EventRowProps {
   event: BaseEvent;
@@ -20,14 +21,6 @@ const STATUS_COLORS: Record<string, string> = {
   timeout: "#f59e0b",
   cancelled: "#6b7280",
 };
-
-function formatDurationMs(startedAt: string, endedAt: string | null): string {
-  if (!endedAt) return "running...";
-  const ms = new Date(endedAt).getTime() - new Date(startedAt).getTime();
-  if (ms < 1000) return `${ms}ms`;
-  if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`;
-  return `${Math.floor(ms / 60000)}m ${Math.floor((ms % 60000) / 1000)}s`;
-}
 
 export function EventRow({ event, depth }: EventRowProps) {
   const [expanded, setExpanded] = useState(false);

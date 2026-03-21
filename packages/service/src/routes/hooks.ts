@@ -22,12 +22,14 @@ import {
   createSession,
   getSessionById,
   allocateSequence,
+  redactAndTruncate,
   type InsertEventInput,
 } from "@agent-recorder/core";
 
 interface HooksRoutesOptions {
   db: Database.Database;
   debug?: boolean;
+  redactKeys?: string[];
 }
 
 /** Hook event from Claude Code (via handler script) */
@@ -58,15 +60,50 @@ interface SessionContext {
   agentCallEventId: string | null;
   /** Stack of active parent event IDs (subagent/skill calls) */
   parentStack: string[];
+  /** Timestamp of last activity (for TTL eviction) */
+  lastActivityAt: number;
 }
 
+/** Max age for session contexts before TTL eviction (1 hour) */
+const SESSION_CONTEXT_TTL_MS = 60 * 60 * 1000;
+/** Maximum number of tracked sessions to prevent unbounded growth */
+const SESSION_CONTEXT_MAX_SIZE = 500;
+
 const sessionContexts = new Map<string, SessionContext>();
+
+/** Evict stale session contexts that exceed TTL */
+function evictStaleContexts(): void {
+  const now = Date.now();
+  for (const [id, ctx] of sessionContexts) {
+    if (now - ctx.lastActivityAt > SESSION_CONTEXT_TTL_MS) {
+      sessionContexts.delete(id);
+    }
+  }
+  // Hard cap: if still over max, remove oldest entries
+  if (sessionContexts.size > SESSION_CONTEXT_MAX_SIZE) {
+    const entries = [...sessionContexts.entries()].sort(
+      (a, b) => a[1].lastActivityAt - b[1].lastActivityAt
+    );
+    const toRemove = entries.length - SESSION_CONTEXT_MAX_SIZE;
+    for (let i = 0; i < toRemove; i++) {
+      sessionContexts.delete(entries[i]![0]);
+    }
+  }
+}
 
 function getSessionContext(sessionId: string): SessionContext {
   let ctx = sessionContexts.get(sessionId);
   if (!ctx) {
-    ctx = { agentCallEventId: null, parentStack: [] };
+    // Evict stale entries before adding new ones
+    evictStaleContexts();
+    ctx = {
+      agentCallEventId: null,
+      parentStack: [],
+      lastActivityAt: Date.now(),
+    };
     sessionContexts.set(sessionId, ctx);
+  } else {
+    ctx.lastActivityAt = Date.now();
   }
   return ctx;
 }
@@ -161,7 +198,7 @@ export async function registerHooksRoutes(
   app: FastifyInstance,
   options: HooksRoutesOptions
 ): Promise<void> {
-  const { db, debug = false } = options;
+  const { db, debug = false, redactKeys = [] } = options;
 
   const hookEventSchema = {
     body: {
@@ -271,7 +308,7 @@ export async function registerHooksRoutes(
               startedAt: now,
               status: "running",
               inputJson: payload.tool_input
-                ? JSON.stringify(payload.tool_input)
+                ? redactAndTruncate(payload.tool_input, redactKeys)
                 : null,
             };
 
@@ -349,10 +386,10 @@ export async function registerHooksRoutes(
                 endedAt: now,
                 status: "success",
                 inputJson: payload.tool_input
-                  ? JSON.stringify(payload.tool_input)
+                  ? redactAndTruncate(payload.tool_input, redactKeys)
                   : null,
                 outputJson: payload.tool_response
-                  ? JSON.stringify(payload.tool_response)
+                  ? redactAndTruncate(payload.tool_response, redactKeys)
                   : null,
               };
 
@@ -390,14 +427,39 @@ export async function registerHooksRoutes(
           }
 
           case "SubagentStop": {
-            // Pop the most recent subagent from the parent stack
+            // Find and remove the matching subagent from the parent stack.
+            // Search from the top (most recent) to handle nested subagents.
             if (ctx.parentStack.length > 0) {
-              const lastId = ctx.parentStack.pop()!;
+              // If we have a tool_name hint from the payload, try to match by
+              // finding the running event in DB. Otherwise fall back to the top.
+              let matchIdx = ctx.parentStack.length - 1;
+
+              if (payload.tool_name) {
+                const { cleanName } = parseToolName(payload.tool_name);
+                // Search stack from top for a matching subagent event
+                for (let i = ctx.parentStack.length - 1; i >= 0; i--) {
+                  const candidateEvent = findRunningEvent(
+                    db,
+                    session.id,
+                    cleanName
+                  );
+                  if (
+                    candidateEvent &&
+                    candidateEvent.id === ctx.parentStack[i]
+                  ) {
+                    matchIdx = i;
+                    break;
+                  }
+                }
+              }
+
+              const matchedId = ctx.parentStack[matchIdx]!;
+              ctx.parentStack.splice(matchIdx, 1);
               const now = new Date().toISOString();
-              completeEvent(db, lastId, "success", now);
+              completeEvent(db, matchedId, "success", now);
               if (debug) {
                 console.log(
-                  `[hooks] SubagentStop: completed ${lastId} (${payload.subagent_type ?? "unknown"})`
+                  `[hooks] SubagentStop: completed ${matchedId} (${payload.subagent_type ?? "unknown"})`
                 );
               }
             }

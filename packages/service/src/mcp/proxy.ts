@@ -12,7 +12,8 @@ import {
   readProvidersFile,
   getDefaultProvidersPath,
 } from "@agent-recorder/core";
-import { readFileSync, watch, type FSWatcher } from "node:fs";
+import { readFileSync, watch, existsSync, type FSWatcher } from "node:fs";
+import { dirname, basename } from "node:path";
 import {
   type JsonRpcRequest,
   type JsonRpcResponse,
@@ -43,13 +44,45 @@ interface UpstreamsRegistry {
 class UpstreamsCache {
   private registry: UpstreamsRegistry = {};
   private watcher: FSWatcher | null = null;
+  private fileName: string;
 
   constructor(private path: string) {
+    this.fileName = basename(path);
     this.reload();
+    this.setupWatcher();
+  }
+
+  private setupWatcher(): void {
+    // Try watching the file directly first
+    if (existsSync(this.path)) {
+      try {
+        this.watcher = watch(this.path, () => this.reload());
+        return;
+      } catch {
+        // Fall through to parent dir watcher
+      }
+    }
+
+    // File doesn't exist yet — watch parent directory for creation
+    const dir = dirname(this.path);
     try {
-      this.watcher = watch(this.path, () => this.reload());
+      this.watcher = watch(dir, (_, filename) => {
+        if (filename === this.fileName) {
+          this.reload();
+          // Upgrade to direct file watcher now that the file exists
+          this.watcher?.close();
+          try {
+            this.watcher = watch(this.path, () => this.reload());
+          } catch {
+            // Keep parent dir watcher if upgrade fails
+            this.watcher = watch(dir, (_, fn) => {
+              if (fn === this.fileName) this.reload();
+            });
+          }
+        }
+      });
     } catch {
-      // File doesn't exist yet — that's fine, watcher is optional
+      // Parent dir doesn't exist — watcher is best-effort
     }
   }
 
