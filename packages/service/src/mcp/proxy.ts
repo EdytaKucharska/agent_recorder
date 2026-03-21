@@ -41,7 +41,8 @@ interface UpstreamsRegistry {
  * Loads from file once and watches for changes via fs.watch.
  * Avoids readFileSync + JSON.parse on every incoming request.
  */
-class UpstreamsCache {
+/** @internal Exported for unit testing only */
+export class UpstreamsCache {
   private registry: UpstreamsRegistry = {};
   private watcher: FSWatcher | null = null;
   private fileName: string;

@@ -97,7 +97,12 @@ const hookEventSchema = {
       end_reason: { type: "string" as const },
       statistics: { type: "object" as const },
     },
-    additionalProperties: false,
+    // No additionalProperties: false here — hook payloads must be forward-
+    // compatible. If Claude Code ships new fields (e.g. correlation_id),
+    // rejecting them would silently drop the entire payload via the
+    // fail-open error handler, with no recording and no warning.
+    // The required-fields check (["hook_type", "session_id"]) provides
+    // the meaningful validation.
   },
 };
 
@@ -144,8 +149,15 @@ function getOrCreateSession(db: Database.Database, sessionId: string) {
 /**
  * Detect if a tool response indicates an error.
  * Checks for MCP-style isError (primary signal), then top-level error fields.
+ *
+ * The isError path (MCP standard) is reliable. The "error" field fallback is
+ * a heuristic that can misclassify custom tools returning { "error": "none" }
+ * or similar status strings as errors. This is an inherent limitation of
+ * heuristic error detection without a strict protocol. The MCP isError field
+ * should be preferred by upstream tool implementors.
  */
-function isToolResponseError(response: unknown): boolean {
+/** @internal Exported for unit testing only */
+export function isToolResponseError(response: unknown): boolean {
   if (response === null || response === undefined) return false;
   if (typeof response !== "object" || Array.isArray(response)) return false;
 
@@ -220,11 +232,17 @@ export async function registerHooksRoutes(
 
   // Session contexts are scoped to this registration — not a module-level global.
   // Each call to registerHooksRoutes gets its own isolated map.
+  //
+  // Note: restart recovery is not supported. If the daemon restarts while a
+  // session is active, the in-memory context is lost. Subsequent hooks for
+  // the same session_id will create a fresh context with no parent chain,
+  // and tool events will appear as disconnected root events. The "before
+  // SessionStart" warning below covers this case.
   const sessionContexts = new Map<string, SessionContext>();
 
   /** Evict stale session contexts that exceed TTL.
-   * Called both on-demand (when adding new sessions) and periodically
-   * to prevent stale entries from accumulating during idle periods. */
+   * Called periodically via setInterval to prevent stale entries from
+   * accumulating during idle periods. */
   function evictStaleContexts(): void {
     const now = Date.now();
     for (const [id, ctx] of sessionContexts) {
@@ -247,8 +265,6 @@ export async function registerHooksRoutes(
   function getSessionContext(sessionId: string): SessionContext {
     let ctx = sessionContexts.get(sessionId);
     if (!ctx) {
-      // Evict stale entries before adding new ones
-      evictStaleContexts();
       ctx = {
         agentCallEventId: null,
         parentStack: [],
@@ -413,6 +429,10 @@ export async function registerHooksRoutes(
               : null;
 
             // Try to find the matching "running" event from PreToolUse.
+            // Invariant: both PreToolUse and PostToolUse receive the same
+            // payload.tool_name, so parseToolName produces the same cleanName
+            // in both hooks. This holds for MCP namespaced tools too
+            // (e.g. "mcp__fs__read_file" → cleanName "read_file").
             // Note: findRunningEvent returns the most recent match by toolName,
             // which may be incorrect if parallel tools share the same name.
             // See packages/core/src/db/events.ts for the caveat documentation.
@@ -503,6 +523,11 @@ export async function registerHooksRoutes(
             // authoritative end_reason, so we defer agent_call completion to
             // SessionEnd to avoid status inconsistency (e.g. "cancelled"
             // agent_call with "completed" session).
+            //
+            // If SessionEnd never fires (e.g. Claude Code crash), running
+            // events and parent stack entries remain until TTL eviction.
+            // They will appear as status: "running" in the UI until the
+            // context is evicted. SessionEnd is the authoritative cleanup path.
             if (debug && ctx.agentCallEventId) {
               console.log(
                 `[hooks] Stop: agent_call ${ctx.agentCallEventId} completion deferred to SessionEnd`
