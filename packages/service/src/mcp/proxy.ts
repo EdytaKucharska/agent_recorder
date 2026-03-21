@@ -69,11 +69,14 @@ class UpstreamsCache {
       this.watcher = watch(dir, (_, filename) => {
         if (filename === this.fileName) {
           this.reload();
-          // Upgrade to direct file watcher now that the file exists
+          // Upgrade to direct file watcher now that the file exists.
+          // Note: there is a small TOCTOU window between close() and the
+          // new watch() where a file change could be missed. The extra
+          // reload() after the swap mitigates this, but it is not atomic.
+          // Acceptable because this is a local config file that changes rarely.
           this.watcher?.close();
           try {
             this.watcher = watch(this.path, () => this.reload());
-            // Reload once more to cover any changes during the watcher swap
             this.reload();
           } catch {
             // Keep parent dir watcher if upgrade fails

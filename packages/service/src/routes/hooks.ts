@@ -25,6 +25,8 @@ import {
   redactAndTruncate,
   deriveErrorCategory,
   type InsertEventInput,
+  type EventStatus,
+  type SessionStatus,
 } from "@agent-recorder/core";
 
 interface HooksRoutesOptions {
@@ -138,7 +140,7 @@ function getOrCreateSession(db: Database.Database, sessionId: string) {
 
 /**
  * Detect if a tool response indicates an error.
- * Checks for MCP-style isError, top-level error fields, and error-like structures.
+ * Checks for MCP-style isError (primary signal), then top-level error fields.
  */
 function isToolResponseError(response: unknown): boolean {
   if (response === null || response === undefined) return false;
@@ -146,12 +148,16 @@ function isToolResponseError(response: unknown): boolean {
 
   const obj = response as Record<string, unknown>;
 
-  // MCP tool result: { isError: true }
+  // MCP tool result: { isError: true } — primary signal
   if (obj.isError === true) return true;
 
-  // Top-level error field (JSON-RPC style or generic)
-  if ("error" in obj && obj.error !== null && obj.error !== undefined) {
-    return true;
+  // Top-level error field (JSON-RPC style or generic).
+  // Only treat as error if the value is a non-empty string or a non-null object.
+  // Avoids false positives from { error: "" } or { error: null }.
+  if ("error" in obj) {
+    const err = obj.error;
+    if (typeof err === "string") return err.length > 0;
+    if (typeof err === "object" && err !== null) return true;
   }
 
   return false;
@@ -461,13 +467,15 @@ export async function registerHooksRoutes(
           }
 
           case "Stop": {
-            // Agent finished — complete the root agent_call
+            // Agent stopped — may be success or user cancellation (Ctrl+C).
+            // Since the Stop hook carries no end_reason, mark as "cancelled"
+            // to distinguish from SessionEnd which provides explicit status.
             if (ctx.agentCallEventId) {
               const now = new Date().toISOString();
-              completeEvent(db, ctx.agentCallEventId, "success", now);
+              completeEvent(db, ctx.agentCallEventId, "cancelled", now);
               if (debug) {
                 console.log(
-                  `[hooks] Stop: completed agent_call ${ctx.agentCallEventId}`
+                  `[hooks] Stop: completed agent_call ${ctx.agentCallEventId} as cancelled`
                 );
               }
               // Clear to prevent double-completion in SessionEnd
@@ -509,10 +517,11 @@ export async function registerHooksRoutes(
           }
 
           case "SessionEnd": {
+            const now = new Date().toISOString();
+
             // End the root agent_call and clean up
             if (ctx.agentCallEventId) {
-              const now = new Date().toISOString();
-              const eventStatus: import("@agent-recorder/core").EventStatus =
+              const eventStatus: EventStatus =
                 payload.end_reason === "error" ? "error" : "success";
               completeEvent(db, ctx.agentCallEventId, eventStatus, now);
 
@@ -527,8 +536,7 @@ export async function registerHooksRoutes(
             }
 
             // End the session in the database
-            const now = new Date().toISOString();
-            const sessionStatus: import("@agent-recorder/core").SessionStatus =
+            const sessionStatus: SessionStatus =
               payload.end_reason === "error" ? "error" : "completed";
             endSession(db, session.id, now, sessionStatus);
 

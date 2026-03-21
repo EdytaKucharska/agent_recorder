@@ -173,9 +173,9 @@ export function updateEventStatus(
 }
 
 /** Complete a running event with output and status.
- * Note: COALESCE(?, output_json) preserves existing output_json if the new
- * value is NULL. This means you cannot explicitly clear output_json to null
- * once set — by design, since partial data is better than lost data. */
+ * When outputJson is omitted (undefined), preserves any existing output_json.
+ * When outputJson is explicitly null, clears output_json to null.
+ * When outputJson is a string, overwrites output_json with the new value. */
 export function completeEvent(
   db: Database.Database,
   id: string,
@@ -184,17 +184,17 @@ export function completeEvent(
   outputJson?: string | null,
   errorCategory?: string | null
 ): BaseEvent | null {
-  const stmt = db.prepare(`
-    UPDATE events SET status = ?, ended_at = ?, output_json = COALESCE(?, output_json), error_category = ?
-    WHERE id = ?
-  `);
-  const result = stmt.run(
-    status,
-    endedAt,
-    outputJson ?? null,
-    errorCategory ?? null,
-    id
-  );
+  // Only preserve existing output when the caller omits outputJson entirely.
+  // Explicit null clears the field; a string overwrites it.
+  const useCoalesce = outputJson === undefined;
+  const sql = useCoalesce
+    ? `UPDATE events SET status = ?, ended_at = ?, error_category = ? WHERE id = ?`
+    : `UPDATE events SET status = ?, ended_at = ?, output_json = ?, error_category = ? WHERE id = ?`;
+
+  const stmt = db.prepare(sql);
+  const result = useCoalesce
+    ? stmt.run(status, endedAt, errorCategory ?? null, id)
+    : stmt.run(status, endedAt, outputJson, errorCategory ?? null, id);
 
   if (result.changes === 0) {
     return null;

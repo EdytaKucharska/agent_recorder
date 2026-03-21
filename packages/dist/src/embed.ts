@@ -17,6 +17,7 @@
  */
 
 // Types — zero dependencies, safe to use everywhere
+// Note: StorageAdapter is @alpha and may change between minor versions.
 export type {
   EventType,
   EventStatus,

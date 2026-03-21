@@ -58,9 +58,11 @@ export interface EventFilterOptions {
  * All methods should be synchronous or return promises consistently.
  * The SQLite implementation is synchronous; other backends may be async.
  *
- * @experimental This interface is not yet implemented. It defines the target
- * contract for pluggable storage backends. The current SQLite functions in
- * `@agent-recorder/core` take `Database.Database` directly.
+ * @alpha This interface is unstable and may change without notice between
+ * minor versions. It defines the target contract for pluggable storage
+ * backends but is not yet implemented. The current SQLite functions in
+ * `@agent-recorder/core` take `Database.Database` directly. Do not depend
+ * on this interface in production code.
  */
 export interface StorageAdapter {
   // Session operations
