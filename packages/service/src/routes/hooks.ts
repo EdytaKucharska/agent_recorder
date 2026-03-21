@@ -364,6 +364,19 @@ export async function registerHooksRoutes(
         // Handle different hook types
         switch (payload.hook_type) {
           case "SessionStart": {
+            // If context already has an agent_call (double SessionStart, e.g.
+            // daemon restart where old context wasn't evicted), complete the
+            // old event so it doesn't stay "running" indefinitely in the DB.
+            if (ctx.agentCallEventId) {
+              completeOrphanedEvents(ctx);
+              ctx.parentStack = [];
+              if (debug) {
+                console.warn(
+                  `[hooks] SessionStart: completing orphaned agent_call ${ctx.agentCallEventId} from previous session start`
+                );
+              }
+            }
+
             // Create root agent_call event for this session
             const sequence = allocateSequence(db, session.id);
             const now = new Date().toISOString();

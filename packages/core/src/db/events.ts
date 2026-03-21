@@ -246,6 +246,17 @@ export function findRunningEvent(
   // TODO(parallel-tools): Fallback matches by tool name + most recent sequence,
   // which is incorrect when parallel tools share the same name. The correlationId
   // column (migration 007) is the right long-term fix.
+  const countStmt = db.prepare(`
+    SELECT COUNT(*) as cnt FROM events
+    WHERE session_id = ? AND tool_name = ? AND status = 'running'
+  `);
+  const { cnt } = countStmt.get(sessionId, toolName) as { cnt: number };
+  if (cnt > 1) {
+    console.warn(
+      `[events] findRunningEvent: ${cnt} running events for tool "${toolName}" in session ${sessionId} — parallel-tool ambiguity, returning most recent`
+    );
+  }
+
   const stmt = db.prepare(`
     SELECT * FROM events
     WHERE session_id = ? AND tool_name = ? AND status = 'running'
