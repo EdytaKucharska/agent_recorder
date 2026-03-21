@@ -25,8 +25,10 @@ export function SessionList({ onSelect }: SessionListProps) {
 
   useEffect(() => {
     let cancelled = false;
+    let hasError = false;
 
     async function load() {
+      if (hasError) return;
       try {
         const data = await getSessions();
         if (!cancelled) {
@@ -35,6 +37,7 @@ export function SessionList({ onSelect }: SessionListProps) {
         }
       } catch (err) {
         if (!cancelled) {
+          hasError = true;
           setError(err instanceof Error ? err.message : "Failed to load");
           setLoading(false);
         }

@@ -149,9 +149,9 @@ describe("completeEvent", () => {
       "error",
       new Date().toISOString(),
       '{"error": "fail"}',
-      "tool_error"
+      "unknown"
     );
-    expect(result!.errorCategory).toBe("tool_error");
+    expect(result!.errorCategory).toBe("unknown");
   });
 });
 

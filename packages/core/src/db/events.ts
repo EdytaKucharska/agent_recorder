@@ -11,8 +11,8 @@ import type {
   EventType,
 } from "../types/index.js";
 
-import type { InsertEventInput } from "@agent-recorder/types";
-export type { InsertEventInput };
+import type { InsertEventInput, EventFilterOptions } from "@agent-recorder/types";
+export type { InsertEventInput, EventFilterOptions };
 
 /** Row shape from SQLite */
 interface EventRow {
@@ -182,7 +182,7 @@ export function completeEvent(
   status: EventStatus,
   endedAt: string,
   outputJson?: string | null,
-  errorCategory?: string | null
+  errorCategory?: ErrorCategory | null
 ): BaseEvent | null {
   // Only preserve existing output when the caller omits outputJson entirely.
   // Explicit null clears the field; a string overwrites it.
@@ -226,22 +226,6 @@ export function findRunningEvent(
   `);
   const row = stmt.get(sessionId, toolName) as EventRow | undefined;
   return row ? rowToEvent(row) : null;
-}
-
-/** Filter options for event queries */
-export interface EventFilterOptions {
-  /** Filter by tool name */
-  toolName?: string;
-  /** Filter by status */
-  status?: EventStatus;
-  /** Filter by error category */
-  errorCategory?: ErrorCategory;
-  /** Filter by upstream key */
-  upstreamKey?: string;
-  /** Only events with sequence > sinceSeq */
-  sinceSeq?: number;
-  /** Maximum number of events to return */
-  limit?: number;
 }
 
 /** Get events for a session with filters (for CLI grep/search) */

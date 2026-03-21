@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useRef } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import type { BaseEvent } from "@agent-recorder/types";
 import { getSession, getSessionEvents, getEventCount } from "../api.js";
 import { EventRow } from "./EventRow.js";
@@ -13,48 +13,53 @@ export function SessionDetail({ sessionId }: SessionDetailProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [sessionStatus, setSessionStatus] = useState<string>("");
-  const sessionStatusRef = useRef(sessionStatus);
-  // errorRef mirrors the error state so the setInterval callback can read
-  // the latest value without a stale closure. Without this, the interval
-  // captures the initial null and never stops retrying after an error.
-  const errorRef = useRef<string | null>(null);
+  const [maxSequence, setMaxSequence] = useState(0);
 
-  // Keep refs in sync with state
-  useEffect(() => {
-    sessionStatusRef.current = sessionStatus;
-  }, [sessionStatus]);
+  const loadEvents = useCallback(
+    async (after?: number) => {
+      try {
+        const [evts, count, session] = await Promise.all([
+          getSessionEvents(sessionId, after),
+          getEventCount(sessionId),
+          getSession(sessionId),
+        ]);
+        if (after && after > 0) {
+          // Incremental: append new events
+          setEvents((prev) => [...prev, ...evts]);
+        } else {
+          setEvents(evts);
+        }
+        setTotalCount(count.count);
+        setSessionStatus(session.status);
+        if (evts.length > 0) {
+          setMaxSequence(evts[evts.length - 1].sequence);
+        }
+        setLoading(false);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Failed to load";
+        setError(msg);
+        setLoading(false);
+      }
+    },
+    [sessionId]
+  );
 
-  const loadEvents = useCallback(async () => {
-    try {
-      const [evts, count, session] = await Promise.all([
-        getSessionEvents(sessionId),
-        getEventCount(sessionId),
-        getSession(sessionId),
-      ]);
-      setEvents(evts);
-      setTotalCount(count.count);
-      setSessionStatus(session.status);
-      setLoading(false);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Failed to load";
-      setError(msg);
-      errorRef.current = msg;
-      setLoading(false);
-    }
-  }, [sessionId]);
-
+  // Initial full load
   useEffect(() => {
     loadEvents();
-    // Auto-refresh every 3 seconds only for active sessions.
-    // Uses a ref to read current status without re-creating the interval.
+  }, [loadEvents]);
+
+  // Auto-refresh: re-runs when error or sessionStatus changes,
+  // avoiding stale closures without refs.
+  useEffect(() => {
+    if (error) return;
+    if (sessionStatus && sessionStatus !== "active") return;
+
     const interval = setInterval(() => {
-      if (errorRef.current) return;
-      const status = sessionStatusRef.current;
-      if (status && status !== "active") return;
-      loadEvents();
+      loadEvents(maxSequence);
     }, 3000);
     return () => clearInterval(interval);
-  }, [loadEvents]);
+  }, [error, sessionStatus, maxSequence, loadEvents]);
 
   if (loading) return <div className="loading">Loading events...</div>;
   if (error) return <div className="error">Error: {error}</div>;

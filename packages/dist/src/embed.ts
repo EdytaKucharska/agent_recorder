@@ -42,8 +42,6 @@ export {
   startServer,
   createMcpProxy,
   createSessionManager,
-  createDaemonContext,
-  type DaemonContext,
   type DaemonHandle,
 } from "@agent-recorder/service";
 
