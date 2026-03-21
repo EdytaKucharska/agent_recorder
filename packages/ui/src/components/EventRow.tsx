@@ -34,7 +34,18 @@ export function EventRow({ event, depth }: EventRowProps) {
 
   return (
     <div className="event-row" style={{ paddingLeft: `${depth * 24 + 8}px` }}>
-      <div className="event-summary" onClick={() => setExpanded(!expanded)}>
+      <div
+        className="event-summary"
+        role="button"
+        tabIndex={0}
+        onClick={() => setExpanded(!expanded)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            setExpanded(!expanded);
+          }
+        }}
+      >
         <span className={`event-type-badge type-${event.eventType}`}>
           {icon}
         </span>

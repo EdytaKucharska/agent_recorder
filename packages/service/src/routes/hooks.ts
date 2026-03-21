@@ -18,11 +18,13 @@ import {
   insertEvent,
   completeEvent,
   findRunningEvent,
+  getEventById,
   endSession,
   createSession,
   getSessionById,
   allocateSequence,
   redactAndTruncate,
+  deriveErrorCategory,
   type InsertEventInput,
 } from "@agent-recorder/core";
 
@@ -69,44 +71,26 @@ const SESSION_CONTEXT_TTL_MS = 60 * 60 * 1000;
 /** Maximum number of tracked sessions to prevent unbounded growth */
 const SESSION_CONTEXT_MAX_SIZE = 500;
 
-const sessionContexts = new Map<string, SessionContext>();
-
-/** Evict stale session contexts that exceed TTL */
-function evictStaleContexts(): void {
-  const now = Date.now();
-  for (const [id, ctx] of sessionContexts) {
-    if (now - ctx.lastActivityAt > SESSION_CONTEXT_TTL_MS) {
-      sessionContexts.delete(id);
-    }
-  }
-  // Hard cap: if still over max, remove oldest entries
-  if (sessionContexts.size > SESSION_CONTEXT_MAX_SIZE) {
-    const entries = [...sessionContexts.entries()].sort(
-      (a, b) => a[1].lastActivityAt - b[1].lastActivityAt
-    );
-    const toRemove = entries.length - SESSION_CONTEXT_MAX_SIZE;
-    for (let i = 0; i < toRemove; i++) {
-      sessionContexts.delete(entries[i]![0]);
-    }
-  }
-}
-
-function getSessionContext(sessionId: string): SessionContext {
-  let ctx = sessionContexts.get(sessionId);
-  if (!ctx) {
-    // Evict stale entries before adding new ones
-    evictStaleContexts();
-    ctx = {
-      agentCallEventId: null,
-      parentStack: [],
-      lastActivityAt: Date.now(),
-    };
-    sessionContexts.set(sessionId, ctx);
-  } else {
-    ctx.lastActivityAt = Date.now();
-  }
-  return ctx;
-}
+/** Fastify JSON schema for hook event validation (module-level constant) */
+const hookEventSchema = {
+  body: {
+    type: "object" as const,
+    required: ["hook_type", "session_id"],
+    properties: {
+      hook_type: { type: "string" as const },
+      session_id: { type: "string" as const },
+      transcript_path: { type: "string" as const },
+      tool_name: { type: "string" as const },
+      tool_input: { type: "object" as const },
+      tool_response: {},
+      subagent_type: { type: "string" as const },
+      message: { type: "string" as const },
+      start_source: { type: "string" as const },
+      end_reason: { type: "string" as const },
+      statistics: { type: "object" as const },
+    },
+  },
+};
 
 /** Get the current parent event ID from the context stack */
 function getCurrentParentId(ctx: SessionContext): string | null {
@@ -146,6 +130,27 @@ function getOrCreateSession(db: Database.Database, sessionId: string) {
   }
   const now = new Date().toISOString();
   return createSession(db, sessionId, now);
+}
+
+/**
+ * Detect if a tool response indicates an error.
+ * Checks for MCP-style isError, top-level error fields, and error-like structures.
+ */
+function isToolResponseError(response: unknown): boolean {
+  if (response === null || response === undefined) return false;
+  if (typeof response !== "object" || Array.isArray(response)) return false;
+
+  const obj = response as Record<string, unknown>;
+
+  // MCP tool result: { isError: true }
+  if (obj.isError === true) return true;
+
+  // Top-level error field (JSON-RPC style or generic)
+  if ("error" in obj && obj.error !== null && obj.error !== undefined) {
+    return true;
+  }
+
+  return false;
 }
 
 /** Map Claude Code tool names to our event model */
@@ -200,25 +205,46 @@ export async function registerHooksRoutes(
 ): Promise<void> {
   const { db, debug = false, redactKeys = [] } = options;
 
-  const hookEventSchema = {
-    body: {
-      type: "object" as const,
-      required: ["hook_type", "session_id"],
-      properties: {
-        hook_type: { type: "string" as const },
-        session_id: { type: "string" as const },
-        transcript_path: { type: "string" as const },
-        tool_name: { type: "string" as const },
-        tool_input: { type: "object" as const },
-        tool_response: {},
-        subagent_type: { type: "string" as const },
-        message: { type: "string" as const },
-        start_source: { type: "string" as const },
-        end_reason: { type: "string" as const },
-        statistics: { type: "object" as const },
-      },
-    },
-  };
+  // Session contexts are scoped to this registration — not a module-level global.
+  // Each call to registerHooksRoutes gets its own isolated map.
+  const sessionContexts = new Map<string, SessionContext>();
+
+  /** Evict stale session contexts that exceed TTL */
+  function evictStaleContexts(): void {
+    const now = Date.now();
+    for (const [id, ctx] of sessionContexts) {
+      if (now - ctx.lastActivityAt > SESSION_CONTEXT_TTL_MS) {
+        sessionContexts.delete(id);
+      }
+    }
+    // Hard cap: if still over max, remove oldest entries
+    if (sessionContexts.size > SESSION_CONTEXT_MAX_SIZE) {
+      const entries = [...sessionContexts.entries()].sort(
+        (a, b) => a[1].lastActivityAt - b[1].lastActivityAt
+      );
+      const toRemove = entries.length - SESSION_CONTEXT_MAX_SIZE;
+      for (let i = 0; i < toRemove; i++) {
+        sessionContexts.delete(entries[i]![0]);
+      }
+    }
+  }
+
+  function getSessionContext(sessionId: string): SessionContext {
+    let ctx = sessionContexts.get(sessionId);
+    if (!ctx) {
+      // Evict stale entries before adding new ones
+      evictStaleContexts();
+      ctx = {
+        agentCallEventId: null,
+        parentStack: [],
+        lastActivityAt: Date.now(),
+      };
+      sessionContexts.set(sessionId, ctx);
+    } else {
+      ctx.lastActivityAt = Date.now();
+    }
+    return ctx;
+  }
 
   // Receive hook events from Claude Code
   app.post<{ Body: HookEventPayload }>(
@@ -337,16 +363,30 @@ export async function registerHooksRoutes(
             );
             const now = new Date().toISOString();
 
+            // Determine status from tool response
+            const responseIsError = isToolResponseError(payload.tool_response);
+            const eventStatus: import("@agent-recorder/core").EventStatus =
+              responseIsError ? "error" : "success";
+            const outputJsonStr = payload.tool_response
+              ? redactAndTruncate(payload.tool_response, redactKeys)
+              : null;
+            const errorCategory = responseIsError
+              ? deriveErrorCategory(eventStatus, outputJsonStr)
+              : null;
+
             // Try to find the matching "running" event from PreToolUse
             const runningEvent = findRunningEvent(db, session.id, cleanName);
 
             if (runningEvent) {
               // Complete the existing running event
-              const outputJson = payload.tool_response
-                ? JSON.stringify(payload.tool_response)
-                : null;
-
-              completeEvent(db, runningEvent.id, "success", now, outputJson);
+              completeEvent(
+                db,
+                runningEvent.id,
+                eventStatus,
+                now,
+                outputJsonStr,
+                errorCategory
+              );
 
               // Pop from parent stack if this was a subagent/skill
               if (eventType === "subagent_call" || eventType === "skill_call") {
@@ -358,7 +398,7 @@ export async function registerHooksRoutes(
 
               if (debug) {
                 console.log(
-                  `[hooks] PostToolUse: completed ${eventType} ${cleanName} (${runningEvent.id})`
+                  `[hooks] PostToolUse: completed ${eventType} ${cleanName} (${runningEvent.id}, status: ${eventStatus})`
                 );
               }
             } else {
@@ -384,20 +424,19 @@ export async function registerHooksRoutes(
                 upstreamKey,
                 startedAt: now,
                 endedAt: now,
-                status: "success",
+                status: eventStatus,
                 inputJson: payload.tool_input
                   ? redactAndTruncate(payload.tool_input, redactKeys)
                   : null,
-                outputJson: payload.tool_response
-                  ? redactAndTruncate(payload.tool_response, redactKeys)
-                  : null,
+                outputJson: outputJsonStr,
+                errorCategory,
               };
 
               insertEvent(db, eventInput);
 
               if (debug) {
                 console.log(
-                  `[hooks] PostToolUse: standalone ${eventType} ${cleanName} (no matching PreToolUse)`
+                  `[hooks] PostToolUse: standalone ${eventType} ${cleanName} (no matching PreToolUse, status: ${eventStatus})`
                 );
               }
             }
@@ -430,23 +469,16 @@ export async function registerHooksRoutes(
             // Find and remove the matching subagent from the parent stack.
             // Search from the top (most recent) to handle nested subagents.
             if (ctx.parentStack.length > 0) {
-              // If we have a tool_name hint from the payload, try to match by
-              // finding the running event in DB. Otherwise fall back to the top.
+              // If we have a tool_name hint, look up the event by ID from the
+              // stack and verify it matches. Otherwise fall back to the top.
               let matchIdx = ctx.parentStack.length - 1;
 
               if (payload.tool_name) {
                 const { cleanName } = parseToolName(payload.tool_name);
-                // Search stack from top for a matching subagent event
+                // Search stack from top for a matching subagent event by ID
                 for (let i = ctx.parentStack.length - 1; i >= 0; i--) {
-                  const candidateEvent = findRunningEvent(
-                    db,
-                    session.id,
-                    cleanName
-                  );
-                  if (
-                    candidateEvent &&
-                    candidateEvent.id === ctx.parentStack[i]
-                  ) {
+                  const candidate = getEventById(db, ctx.parentStack[i]!);
+                  if (candidate && candidate.toolName === cleanName) {
                     matchIdx = i;
                     break;
                   }

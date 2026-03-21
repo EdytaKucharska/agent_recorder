@@ -73,6 +73,8 @@ class UpstreamsCache {
           this.watcher?.close();
           try {
             this.watcher = watch(this.path, () => this.reload());
+            // Reload once more to cover any changes during the watcher swap
+            this.reload();
           } catch {
             // Keep parent dir watcher if upgrade fails
             this.watcher = watch(dir, (_, fn) => {

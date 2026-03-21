@@ -11,6 +11,11 @@ import type {
   EventType,
 } from "../types/index.js";
 
+// Re-export InsertEventInput from the canonical definition in @agent-recorder/types
+// to avoid maintaining two copies of the same interface.
+export type { InsertEventInput } from "@agent-recorder/types";
+import type { InsertEventInput } from "@agent-recorder/types";
+
 /** Row shape from SQLite */
 interface EventRow {
   id: string;
@@ -55,27 +60,6 @@ function rowToEvent(row: EventRow): BaseEvent {
     errorCategory: row.error_category as ErrorCategory | null,
     createdAt: row.created_at,
   };
-}
-
-/** Input for inserting a new event */
-export interface InsertEventInput {
-  id: string;
-  sessionId: string;
-  parentEventId?: string | null;
-  sequence: number;
-  eventType: EventType;
-  agentRole: string;
-  agentName: string;
-  skillName?: string | null;
-  toolName?: string | null;
-  mcpMethod?: string | null;
-  upstreamKey?: string | null;
-  startedAt: string;
-  endedAt?: string | null;
-  status: EventStatus;
-  inputJson?: string | null;
-  outputJson?: string | null;
-  errorCategory?: ErrorCategory | null;
 }
 
 /** Insert a new event */

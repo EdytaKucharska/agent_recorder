@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import type { BaseEvent } from "@agent-recorder/types";
 import { getSession, getSessionEvents, getEventCount } from "../api.js";
 import { EventRow } from "./EventRow.js";
@@ -13,6 +13,12 @@ export function SessionDetail({ sessionId }: SessionDetailProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [sessionStatus, setSessionStatus] = useState<string>("");
+  const sessionStatusRef = useRef(sessionStatus);
+
+  // Keep ref in sync with state
+  useEffect(() => {
+    sessionStatusRef.current = sessionStatus;
+  }, [sessionStatus]);
 
   const loadEvents = useCallback(async () => {
     try {
@@ -33,14 +39,15 @@ export function SessionDetail({ sessionId }: SessionDetailProps) {
 
   useEffect(() => {
     loadEvents();
-    // Auto-refresh every 3 seconds only for active sessions
+    // Auto-refresh every 3 seconds only for active sessions.
+    // Uses a ref to read current status without re-creating the interval.
     const interval = setInterval(() => {
-      // Stop polling once session is no longer active
-      if (sessionStatus && sessionStatus !== "active") return;
+      const status = sessionStatusRef.current;
+      if (status && status !== "active") return;
       loadEvents();
     }, 3000);
     return () => clearInterval(interval);
-  }, [loadEvents, sessionStatus]);
+  }, [loadEvents]);
 
   if (loading) return <div className="loading">Loading events...</div>;
   if (error) return <div className="error">Error: {error}</div>;
