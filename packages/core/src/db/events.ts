@@ -11,7 +11,10 @@ import type {
   EventType,
 } from "../types/index.js";
 
-import type { InsertEventInput, EventFilterOptions } from "@agent-recorder/types";
+import type {
+  InsertEventInput,
+  EventFilterOptions,
+} from "@agent-recorder/types";
 export type { InsertEventInput, EventFilterOptions };
 
 /** Row shape from SQLite */
