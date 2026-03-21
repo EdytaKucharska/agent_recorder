@@ -271,6 +271,11 @@ export async function registerHooksRoutes(
         lastActivityAt: Date.now(),
       };
       sessionContexts.set(sessionId, ctx);
+      // Evict if cap exceeded — prevents unbounded growth between
+      // periodic interval ticks under high session creation rates.
+      if (sessionContexts.size > SESSION_CONTEXT_MAX_SIZE) {
+        evictStaleContexts();
+      }
     } else {
       ctx.lastActivityAt = Date.now();
     }
@@ -440,7 +445,7 @@ export async function registerHooksRoutes(
 
             if (runningEvent) {
               // Complete the existing running event
-              completeEvent(
+              const completed = completeEvent(
                 db,
                 runningEvent.id,
                 eventStatus,
@@ -448,6 +453,12 @@ export async function registerHooksRoutes(
                 outputJsonStr,
                 errorCategory
               );
+
+              if (!completed && debug) {
+                console.warn(
+                  `[hooks] PostToolUse: completeEvent returned null for ${runningEvent.id} — already completed?`
+                );
+              }
 
               // Pop from parent stack if still present. SubagentStop may
               // have already removed this entry; the splice is a safe no-op

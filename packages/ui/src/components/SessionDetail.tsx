@@ -54,15 +54,18 @@ export function SessionDetail({ sessionId }: SessionDetailProps) {
 
   // Auto-refresh: stable interval that reads maxSequence from a ref
   // so it doesn't re-create on every poll cycle.
+  // Only starts after initial load completes (loading === false) to
+  // prevent a race where the interval fires loadEvents(0) before the
+  // initial load finishes, causing duplicate events in state.
   useEffect(() => {
-    if (error) return;
+    if (loading || error) return;
     if (sessionStatus && sessionStatus !== "active") return;
 
     const interval = setInterval(() => {
       loadEvents(maxSequenceRef.current);
     }, 3000);
     return () => clearInterval(interval);
-  }, [error, sessionStatus, loadEvents]);
+  }, [loading, error, sessionStatus, loadEvents]);
 
   if (loading) return <div className="loading">Loading events...</div>;
   if (error) return <div className="error">Error: {error}</div>;
