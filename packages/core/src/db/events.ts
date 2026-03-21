@@ -30,6 +30,7 @@ interface EventRow {
   tool_name: string | null;
   mcp_method: string | null;
   upstream_key: string | null;
+  correlation_id: string | null;
   started_at: string;
   ended_at: string | null;
   status: string;
@@ -53,6 +54,7 @@ function rowToEvent(row: EventRow): BaseEvent {
     toolName: row.tool_name,
     mcpMethod: row.mcp_method,
     upstreamKey: row.upstream_key,
+    correlationId: row.correlation_id,
     startedAt: row.started_at,
     endedAt: row.ended_at,
     status: row.status as EventStatus,
@@ -207,20 +209,34 @@ export function completeEvent(
 }
 
 /**
- * Find the most recent "running" event for a given tool name in a session.
+ * Find a "running" event for a given tool name in a session.
  * Used to match PreToolUse → PostToolUse.
  *
- * Known limitation: if the same tool fires in parallel, this matches the most
- * recent instance by sequence. PostToolUse may complete the wrong event.
- * This assumes sequential tool execution per session, which holds for Claude
- * Code's current architecture. If parallel tool use is added, this should
- * match by a correlation ID instead.
+ * When a correlationId is provided, matches exactly on that ID.
+ * Otherwise falls back to the most recent running event by sequence.
+ *
+ * The fallback assumes sequential tool execution per session, which holds
+ * for Claude Code's current architecture. When Claude Code adds correlation
+ * IDs, callers should pass them to get exact matching.
  */
 export function findRunningEvent(
   db: Database.Database,
   sessionId: string,
-  toolName: string
+  toolName: string,
+  correlationId?: string | null
 ): BaseEvent | null {
+  // Prefer exact correlation ID match when available
+  if (correlationId) {
+    const stmt = db.prepare(`
+      SELECT * FROM events
+      WHERE session_id = ? AND correlation_id = ? AND status = 'running'
+      LIMIT 1
+    `);
+    const row = stmt.get(sessionId, correlationId) as EventRow | undefined;
+    if (row) return rowToEvent(row);
+  }
+
+  // Fallback: most recent running event by tool name
   const stmt = db.prepare(`
     SELECT * FROM events
     WHERE session_id = ? AND tool_name = ? AND status = 'running'

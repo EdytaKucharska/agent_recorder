@@ -23,7 +23,7 @@ export function SessionDetail({ sessionId }: SessionDetailProps) {
           getEventCount(sessionId),
           getSession(sessionId),
         ]);
-        if (after && after > 0) {
+        if (after !== undefined) {
           // Incremental: append new events
           setEvents((prev) => [...prev, ...evts]);
         } else {

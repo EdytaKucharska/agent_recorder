@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { SessionList } from "./components/SessionList.js";
 import { SessionDetail } from "./components/SessionDetail.js";
+import { ErrorBoundary } from "./components/ErrorBoundary.js";
 
 export function App() {
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(
@@ -28,11 +29,13 @@ export function App() {
         )}
       </header>
       <main className="app-main">
-        {selectedSessionId ? (
-          <SessionDetail sessionId={selectedSessionId} />
-        ) : (
-          <SessionList onSelect={setSelectedSessionId} />
-        )}
+        <ErrorBoundary>
+          {selectedSessionId ? (
+            <SessionDetail sessionId={selectedSessionId} />
+          ) : (
+            <SessionList onSelect={setSelectedSessionId} />
+          )}
+        </ErrorBoundary>
       </main>
     </div>
   );

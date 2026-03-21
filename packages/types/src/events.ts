@@ -67,6 +67,9 @@ export interface BaseEvent {
   /** Upstream server key (for router mode, null for legacy single-upstream) */
   upstreamKey: string | null;
 
+  /** Correlation ID for matching PreToolUse → PostToolUse (null until Claude Code provides one) */
+  correlationId: string | null;
+
   /** When this event started (ISO 8601) */
   startedAt: string;
 

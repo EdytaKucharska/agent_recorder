@@ -27,6 +27,7 @@ export interface InsertEventInput {
   toolName?: string | null;
   mcpMethod?: string | null;
   upstreamKey?: string | null;
+  correlationId?: string | null;
   startedAt: string;
   endedAt?: string | null;
   status: EventStatus;

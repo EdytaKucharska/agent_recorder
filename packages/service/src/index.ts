@@ -26,6 +26,7 @@ import { createServer, startServer } from "./server.js";
 import { createMcpProxy } from "./mcp/index.js";
 import { createSessionManager } from "./session-manager.js";
 import { AutoWrapManager } from "./mcp/auto-wrap-manager.js";
+import type { DaemonContext } from "./daemon-context.js";
 
 export { createServer, startServer } from "./server.js";
 export { createMcpProxy } from "./mcp/index.js";
@@ -76,7 +77,7 @@ export async function startDaemon(
   const startedAt = new Date().toISOString();
 
   // Create daemon context (replaces module globals)
-  const daemonContext: import("./daemon-context.js").DaemonContext = {
+  const daemonContext: DaemonContext = {
     mode: isDaemonMode ? "daemon" : "foreground",
     sessionId: sessionManager.sessionId,
     startedAt,
