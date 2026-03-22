@@ -8,12 +8,16 @@ Agent Recorder is a local-first flight recorder for Claude Code that captures a 
 
 ## Architecture
 
-TypeScript monorepo with four packages:
+TypeScript monorepo:
 
-- **packages/core** - Event model, redaction/truncation, storage (SQLite), shared types
+- **packages/types** - Portable type definitions (zero dependencies)
+- **packages/core** - Event model, redaction/truncation, storage (SQLite), shared utilities
+- **packages/service** - Local daemon (Fastify): MCP proxy + recorder + REST API (localhost only)
 - **packages/cli** - CLI commands (start, stop, status, open, session, config, telemetry)
-- **packages/service** - Local daemon (Fastify recommended): MCP proxy + recorder + REST API (localhost only)
+- **packages/hooks** - Claude Code hook handlers
+- **packages/stdio-proxy** - STDIO proxy for MCP server observability
 - **packages/ui** - React + Vite SPA served locally for inspection
+- **packages/dist** - Distribution bundler for npm publishing
 
 ### Event model (tree, not a strict chain)
 
@@ -58,21 +62,14 @@ From `.env` (local only):
 - `AGENT_RECORDER_TELEMETRY` (default `off`)
 - `AR_REDACT_KEYS` - comma-separated sensitive keys to redact from JSON payloads
 
-## Required Reading (follow `.claude/INDEX.md`)
+## Required Reading
 
-Read docs in this order before implementing:
+Read these docs before implementing:
 
-1. docs/prd.md
-2. docs/architecture.md
-3. docs/claude-code-detection-rules.md
-4. docs/ui-wireframes.md
-5. docs/acceptance-tests-claude.md
-6. docs/tech-stack.md
-7. docs/coding-standards.md
-8. docs/product-principles.md
-9. docs/telemetry.md
-10. docs/oss-model.md
-11. docs/cli-ux.md
+1. docs/prd.md — product scope and MVP requirements
+2. docs/architecture.md — data flow and storage overview
+3. docs/coding-standards.md — key engineering constraints
+4. docs/product-principles.md — guiding design principles
 
 ## Implementation Notes
 
