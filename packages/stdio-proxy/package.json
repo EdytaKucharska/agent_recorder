@@ -20,7 +20,8 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@agent-recorder/core": "workspace:*"
+    "@agent-recorder/core": "workspace:*",
+    "@agent-recorder/types": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.0.0"

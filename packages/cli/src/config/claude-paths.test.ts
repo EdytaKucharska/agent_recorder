@@ -13,7 +13,7 @@ import {
   getMcpServerEntry,
   setMcpServerEntry,
   formatPath,
-} from "./claude-paths.js";
+} from "@agent-recorder/core";
 
 describe("claude-paths", () => {
   let tempDir: string;

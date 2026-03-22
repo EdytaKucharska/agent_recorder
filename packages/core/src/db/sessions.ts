@@ -5,7 +5,11 @@
 
 import type Database from "better-sqlite3";
 import { randomUUID } from "node:crypto";
-import type { Session, SessionStatus } from "../types/index.js";
+import type {
+  Session,
+  SessionStatus,
+  SessionWithActivity,
+} from "@agent-recorder/types";
 
 /** Row shape from SQLite */
 interface SessionRow {
@@ -96,10 +100,7 @@ export function listSessions(
   }
 }
 
-/** Session with last activity timestamp */
-export interface SessionWithActivity extends Session {
-  lastActivityAt: string | null;
-}
+export type { SessionWithActivity };
 
 /** List sessions with last activity timestamp from events */
 export function listSessionsWithActivity(

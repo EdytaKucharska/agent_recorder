@@ -25,3 +25,10 @@ export interface Session {
   /** When this record was created (ISO 8601) */
   createdAt: string;
 }
+
+/**
+ * Session with last activity timestamp, used by REST API responses.
+ */
+export interface SessionWithActivity extends Session {
+  lastActivityAt: string | null;
+}
