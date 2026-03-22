@@ -1,6 +1,6 @@
 {
   "name": "@agent-recorder/core",
-  "version": "2.0.12",
+  "version": "2.0.13",
   "description": "Core types, utilities, and SQLite integration for Agent Recorder",
   "type": "module",
   "exports": {

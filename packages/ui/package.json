@@ -1,6 +1,6 @@
 {
   "name": "@agent-recorder/ui",
-  "version": "2.0.12",
+  "version": "2.0.13",
   "description": "Web UI for Agent Recorder — session inspector",
   "type": "module",
   "private": true,
