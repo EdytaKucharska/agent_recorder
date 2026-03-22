@@ -19,14 +19,15 @@ TypeScript monorepo:
 - **packages/ui** - React + Vite SPA served locally for inspection
 - **packages/dist** - Distribution bundler for npm publishing
 
+### Dependency flow
+
+`types` → `core` → `service` / `hooks` / `stdio-proxy` → `cli` → `dist`
+
+`ui` depends only on `types` (no Node/SQLite deps in the browser bundle).
+
 ### Event model (tree, not a strict chain)
 
-Event types:
-
-- `agent_call`
-- `subagent_call`
-- `skill_call`
-- `tool_call`
+Event types: `agent_call`, `subagent_call`, `skill_call`, `tool_call`
 
 Nesting rules:
 
@@ -34,47 +35,65 @@ Nesting rules:
 - `skill_call` is optional; when present, `tool_call` may be nested under it.
 - Preserve parent/child relationships to render a hierarchical timeline.
 
-## Tech Stack
+## Workflow Orchestration
 
-- **Runtime:** Node.js LTS + TypeScript (strict, ES2022)
-- **CLI:** Commander.js or Clipanion
-- **Server/Daemon:** Fastify (localhost only)
-- **Database:** SQLite (`better-sqlite3`)
-- **Frontend:** React + Vite
-- **Testing:** Vitest (UI e2e optional later)
+### 1. Plan Before Building
+
+- Enter plan mode for any non-trivial task (3+ steps or architectural decisions).
+- If something goes sideways, STOP and re-plan immediately.
+- Write detailed specs upfront to reduce ambiguity.
+
+### 2. Subagent Strategy
+
+- Use subagents liberally to keep main context window clean.
+- Offload research, exploration, and parallel analysis to subagents.
+- One task per subagent for focused execution.
+
+### 3. Verification Before Done
+
+- Never mark a task complete without proving it works.
+- Run `pnpm build && pnpm test && pnpm lint && pnpm format:check` before declaring done.
+- Run `pnpm build:dist && pnpm smoke:dist` for changes touching packaging.
+- Ask yourself: "Would a staff engineer approve this?"
+
+### 4. Autonomous Bug Fixing
+
+- When given a bug report: just fix it. Don't ask for hand-holding.
+- Point at logs, errors, failing tests — then resolve them.
+- Go fix failing CI tests without being told how.
+
+## Core Principles
+
+- **Privacy is non-negotiable**: No prompt capture. No chain-of-thought. Redact + truncate aggressively; prefer losing data to leaking data.
+- **Fail open**: Never block the MCP proxy on logging, telemetry, or recording errors. The proxy must always forward.
+- **Local-first**: SQLite + localhost daemon + local web UI. No cloud sync in v1.
+- **Simplicity first**: Make every change as simple as possible. Impact minimal code. Don't over-engineer.
+- **No laziness**: Find root causes. No temporary fixes. Senior developer standards.
+- **Minimal impact**: Only touch what's necessary. No side effects with new bugs.
+- **Dependencies**: Keep them minimal and boring.
 
 ## Key Constraints (non-negotiable)
 
 - Claude Code only (v1 scope). No other agent platforms.
-- No prompt capture. No chain-of-thought/reasoning capture.
-- Local-first: SQLite + localhost daemon + local web UI.
-- No cloud sync / hosted mode in v1.
 - Telemetry: PostHog is opt-in, anonymous, content-free, and must never affect proxying.
-- Never block proxy on logging/telemetry. Fail open.
+- Map errors to stable categories (avoid raw downstream messages when possible).
+- TypeScript path alias: `@agent-recorder/core/*` → `packages/core/src/*`
+
+## Tech Stack
+
+- **Runtime:** Node.js LTS + TypeScript (strict, ES2022)
+- **CLI:** Commander.js
+- **Server/Daemon:** Fastify (localhost only)
+- **Database:** SQLite (`better-sqlite3`)
+- **Frontend:** React + Vite
+- **Testing:** Vitest
 
 ## Environment Variables
 
 From `.env` (local only):
 
-- `AR_LISTEN_PORT` (default 8787) - Local daemon port (proxy endpoints and/or REST)
+- `AR_LISTEN_PORT` (default 8787) - Local daemon port
 - `AR_UI_PORT` (default 8788) - Local UI port
 - `AR_DB_PATH` (default `.storage/agent-recorder.sqlite`)
 - `AGENT_RECORDER_TELEMETRY` (default `off`)
 - `AR_REDACT_KEYS` - comma-separated sensitive keys to redact from JSON payloads
-
-## Required Reading
-
-Read these docs before implementing:
-
-1. docs/prd.md — product scope and MVP requirements
-2. docs/architecture.md — data flow and storage overview
-3. docs/coding-standards.md — key engineering constraints
-4. docs/product-principles.md — guiding design principles
-
-## Implementation Notes
-
-- Map errors to stable categories (avoid raw downstream messages when possible).
-- Redact + truncate aggressively; prefer losing data to leaking data.
-- Keep dependencies minimal and boring.
-- TypeScript path alias:
-  - `@agent-recorder/core/*` → `packages/core/src/*`
