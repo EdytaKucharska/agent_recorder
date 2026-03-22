@@ -9,7 +9,7 @@ import type {
   Session,
   SessionStatus,
   SessionWithActivity,
-} from "../types/index.js";
+} from "@agent-recorder/types";
 
 /** Row shape from SQLite */
 interface SessionRow {

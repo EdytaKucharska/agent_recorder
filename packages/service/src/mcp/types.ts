@@ -1,9 +1,10 @@
 /**
  * JSON-RPC 2.0 types and helpers for MCP protocol.
- * Types are re-exported from @agent-recorder/types.
+ * Types are canonical in @agent-recorder/types; imported here and re-exported
+ * alongside the runtime helper functions that depend on them.
  */
 
-export type {
+import type {
   JsonRpcRequest,
   JsonRpcSuccessResponse,
   JsonRpcErrorResponse,
@@ -11,12 +12,13 @@ export type {
   ToolsCallParams,
 } from "@agent-recorder/types";
 
-import type {
+export type {
   JsonRpcRequest,
-  JsonRpcResponse,
+  JsonRpcSuccessResponse,
   JsonRpcErrorResponse,
+  JsonRpcResponse,
   ToolsCallParams,
-} from "@agent-recorder/types";
+};
 
 /** Check if a JSON-RPC request is a tools/call request */
 export function isToolsCallRequest(
