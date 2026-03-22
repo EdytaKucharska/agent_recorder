@@ -80,3 +80,74 @@ export function writeJsonFileAtomic(
   fs.writeFileSync(tempPath, content, "utf-8");
   fs.renameSync(tempPath, filePath);
 }
+
+export interface McpServerEntry {
+  url?: string;
+  command?: string;
+  args?: string[];
+}
+
+/**
+ * Create a backup of a file with timestamp.
+ * Returns the backup path.
+ */
+export function createBackup(filePath: string): string {
+  const now = new Date();
+  const timestamp = now.toISOString().replace(/[-:T]/g, "").slice(0, 14);
+  const backupPath = `${filePath}.bak-${timestamp}`;
+
+  if (fs.existsSync(filePath)) {
+    fs.copyFileSync(filePath, backupPath);
+  }
+
+  return backupPath;
+}
+
+/**
+ * Get the agent-recorder MCP server entry from a config object.
+ */
+export function getMcpServerEntry(
+  config: Record<string, unknown>
+): McpServerEntry | null {
+  const mcpServers = config.mcpServers as Record<string, unknown> | undefined;
+  if (!mcpServers || typeof mcpServers !== "object") {
+    return null;
+  }
+
+  const entry = mcpServers["agent-recorder"] as McpServerEntry | undefined;
+  if (!entry || typeof entry !== "object") {
+    return null;
+  }
+
+  return entry;
+}
+
+/**
+ * Set the agent-recorder MCP server entry in a config object.
+ * Returns a new config object (does not mutate input).
+ */
+export function setMcpServerEntry(
+  config: Record<string, unknown>,
+  url: string
+): Record<string, unknown> {
+  const newConfig = { ...config };
+
+  const mcpServers = (newConfig.mcpServers as Record<string, unknown>) || {};
+  newConfig.mcpServers = {
+    ...mcpServers,
+    "agent-recorder": { url },
+  };
+
+  return newConfig;
+}
+
+/**
+ * Format a path for display, replacing home directory with ~
+ */
+export function formatPath(filePath: string): string {
+  const home = os.homedir();
+  if (filePath.startsWith(home)) {
+    return "~" + filePath.slice(home.length);
+  }
+  return filePath;
+}

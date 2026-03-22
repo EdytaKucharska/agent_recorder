@@ -1,3 +1,7 @@
+/**
+ * Type re-exports from @agent-recorder/types (the canonical zero-dep source).
+ */
+
 export type {
   EventType,
   EventStatus,
@@ -8,8 +12,8 @@ export type {
   SkillCallEvent,
   ToolCallEvent,
   RecordedEvent,
-} from "./events.js";
-
-export type { SessionStatus, Session } from "./session.js";
-
-export type { StorageAdapter } from "@agent-recorder/types";
+  SessionStatus,
+  Session,
+  SessionWithActivity,
+  StorageAdapter,
+} from "@agent-recorder/types";

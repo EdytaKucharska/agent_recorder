@@ -2,11 +2,14 @@
  * API client for Agent Recorder daemon REST API.
  */
 
-import type { Session, BaseEvent, SessionStatus } from "@agent-recorder/types";
+import type {
+  Session,
+  BaseEvent,
+  SessionStatus,
+  SessionWithActivity,
+} from "@agent-recorder/types";
 
-export interface SessionWithActivity extends Session {
-  lastActivityAt: string | null;
-}
+export type { SessionWithActivity };
 
 const BASE = "/api";
 

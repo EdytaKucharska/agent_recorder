@@ -117,6 +117,9 @@ importers:
       '@agent-recorder/core':
         specifier: workspace:*
         version: link:../core
+      '@agent-recorder/types':
+        specifier: workspace:*
+        version: link:../types
       better-sqlite3:
         specifier: ^11.7.0
         version: 11.10.0
@@ -136,12 +139,19 @@ importers:
       '@agent-recorder/core':
         specifier: workspace:*
         version: link:../core
+      '@agent-recorder/types':
+        specifier: workspace:*
+        version: link:../types
     devDependencies:
       '@types/node':
         specifier: ^22.0.0
         version: 22.19.3
 
-  packages/types: {}
+  packages/types:
+    devDependencies:
+      typescript:
+        specifier: ^5.5.0
+        version: 5.9.3
 
   packages/ui:
     dependencies:

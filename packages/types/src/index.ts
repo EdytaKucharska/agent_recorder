@@ -18,7 +18,7 @@ export type {
   RecordedEvent,
 } from "./events.js";
 
-export type { SessionStatus, Session } from "./session.js";
+export type { SessionStatus, Session, SessionWithActivity } from "./session.js";
 
 export type {
   InsertEventInput,
@@ -26,3 +26,11 @@ export type {
   EventFilterOptions,
   StorageAdapter,
 } from "./storage.js";
+
+export type {
+  JsonRpcRequest,
+  JsonRpcSuccessResponse,
+  JsonRpcErrorResponse,
+  JsonRpcResponse,
+  ToolsCallParams,
+} from "./jsonrpc.js";

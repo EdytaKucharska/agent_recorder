@@ -1,26 +1,9 @@
 /**
- * Types for the STDIO proxy
+ * Types for the STDIO proxy.
+ * JSON-RPC types are imported from @agent-recorder/types.
  */
 
-/** JSON-RPC 2.0 request structure */
-export interface JsonRpcRequest {
-  jsonrpc: "2.0";
-  method: string;
-  params?: unknown;
-  id?: string | number | null;
-}
-
-/** JSON-RPC 2.0 response structure */
-export interface JsonRpcResponse {
-  jsonrpc: "2.0";
-  result?: unknown;
-  error?: {
-    code: number;
-    message: string;
-    data?: unknown;
-  };
-  id: string | number | null;
-}
+export type { JsonRpcRequest, JsonRpcResponse } from "@agent-recorder/types";
 
 /** Recorded MCP message for telemetry */
 export interface McpMessage {
