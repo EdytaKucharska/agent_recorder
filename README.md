@@ -1,43 +1,54 @@
-[![CI](https://github.com/EdytaKucharska/agent_recorder/actions/workflows/ci.yml/badge.svg)](https://github.com/EdytaKucharska/agent_recorder/actions/workflows/ci.yml)
-[![npm version](https://badge.fury.io/js/agent-recorder.svg)](https://www.npmjs.com/package/agent-recorder)
+<p align="center">
+  <h1 align="center">Agent Recorder</h1>
+  <p align="center">
+    <strong>Flight recorder for AI coding agents — see every tool call, MCP request, and subagent spawn</strong>
+  </p>
+  <p align="center">
+    <a href="https://github.com/EdytaKucharska/agent_recorder/actions/workflows/ci.yml"><img src="https://github.com/EdytaKucharska/agent_recorder/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+    <a href="https://www.npmjs.com/package/agent-recorder"><img src="https://badge.fury.io/js/agent-recorder.svg" alt="npm version"></a>
+    <a href="https://github.com/EdytaKucharska/agent_recorder/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT"></a>
+    <a href="https://www.npmjs.com/package/agent-recorder"><img src="https://img.shields.io/npm/dm/agent-recorder.svg" alt="npm downloads"></a>
+    <a href="https://nodejs.org/"><img src="https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg" alt="Node.js >= 20"></a>
+    <a href="https://github.com/EdytaKucharska/agent_recorder/pulls"><img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg" alt="PRs Welcome"></a>
+  </p>
+</p>
 
-# Agent Recorder
+<br>
 
-A **local-first flight recorder** for Claude Code and MCP servers. Captures a persistent, human-readable timeline of tool calls, subagents, and skills — so you can debug, audit, and understand agent behavior.
+> **Ever wondered what your AI agent is actually doing?** Agent Recorder captures every tool call, MCP server interaction, and subagent spawn into a local SQLite database — giving you a full, searchable timeline of agent execution. No prompts captured. No chain-of-thought leaked. Just observable boundaries.
 
-**No prompts. No chain-of-thought. Just observable execution boundaries.**
+<br>
+
+## The Problem
+
+AI coding agents (Claude Code, Cursor, etc.) call dozens of tools per session — file reads, shell commands, MCP servers, subagents — but there's **no easy way to see what happened** after the fact. Debugging agent behavior means scrolling through terminal output or guessing what went wrong.
+
+**Agent Recorder fixes this.** It sits transparently between your agent and its tools, recording a structured timeline you can search, filter, export, and inspect — without ever capturing sensitive prompts or reasoning.
 
 ---
 
-## Features
+## Highlights
 
-- **Claude Code Plugin** — install via `/plugin` and use slash commands directly
-- **Record all tool calls** — built-in tools, MCP servers, subagents, skills
-- **MCP server tracking** — see which server handled each call, with input/output
-- **Hierarchical events** — agent → subagent → skill → tool relationships
-- **Terminal UI (TUI)** — interactive session browser with event inspection
-- **Multiple export formats** — JSON, JSONL, HAR (browser dev tools), OpenTelemetry (Jaeger)
-- **STDIO proxy** — record MCP traffic from Claude Desktop, Cursor, VS Code
-- **Docker support** — containerized deployment with persistent storage
-- **Hub/Router mode** — aggregate multiple MCP servers behind one endpoint
-- **MCP discovery** — auto-detect MCP configs across Claude, Cursor, VS Code
-- **Local-first** — SQLite database, localhost daemon, no cloud sync
-- **Privacy-focused** — no prompt capture, no reasoning capture, redaction built in
+- **Zero-config for Claude Code** — install as a plugin, recording starts automatically
+- **Works with any MCP client** — Claude Desktop, Cursor, VS Code via STDIO proxy
+- **Hierarchical event tree** — agent → subagent → skill → tool relationships preserved
+- **Interactive TUI** — browse sessions and inspect events in your terminal
+- **Export anywhere** — JSON, JSONL, HAR (browser devtools), OpenTelemetry (Jaeger/Zipkin)
+- **Privacy-first** — no prompts, no chain-of-thought, automatic key redaction
+- **100% local** — SQLite + localhost daemon, your data never leaves your machine
 
 ---
 
 ## Quick Start
 
-### Option 1: Claude Code Plugin (Recommended)
-
-Install directly in Claude Code using the plugin system:
+### Claude Code Plugin (recommended)
 
 ```bash
-# In Claude Code, run:
+# In Claude Code:
 /plugin install agent-recorder@EdytaKucharska/agent_recorder
 ```
 
-After installation, use these slash commands:
+That's it. The plugin installs a `PostToolUse` hook — every tool call is recorded automatically.
 
 | Command                  | Description                     |
 | ------------------------ | ------------------------------- |
@@ -47,51 +58,34 @@ After installation, use these slash commands:
 | `/agent-recorder:status` | Check if daemon is running      |
 | `/agent-recorder:export` | Export session to JSON/HAR/OTLP |
 
-The plugin also installs a `PostToolUse` hook that automatically records every tool call.
-
-### Option 2: npm Install
+### npm
 
 ```bash
-# Install globally
 npm install -g agent-recorder
-
-# Set up data directory and configure Claude Code
-agent-recorder install
-
-# Start the recording daemon
-agent-recorder start --daemon
-
-# Install hooks into Claude Code (if not using plugin)
-agent-recorder hooks install
-
-# Restart Claude Code to pick up the hooks
-
-# Use Claude Code normally — tool calls are now recorded!
-
-# View recordings
-agent-recorder tui
+agent-recorder install          # Configure data directory + Claude Code
+agent-recorder start --daemon   # Start recording
+agent-recorder hooks install    # Install Claude Code hooks
+# Restart Claude Code — tool calls are now recorded!
+agent-recorder tui              # Browse recordings
 ```
 
-### Option 3: Docker
+### Docker
 
 ```bash
-# Using Docker Compose
 docker compose up -d
-
-# Or build and run directly
-docker build -t agent-recorder .
+# or
 docker run -d -p 8787:8787 -v agent-recorder-data:/data agent-recorder
 ```
 
 ---
 
-## Architecture
+## How It Works
 
-Agent Recorder supports three recording methods:
+Agent Recorder supports three recording methods depending on your setup:
 
-### Method 1: Hooks (Claude Code)
+### 1. Hooks (Claude Code)
 
-Uses Claude Code's native hooks system to capture tool calls directly. Zero config — the plugin installs the hooks automatically.
+Claude Code's native hooks fire on every tool call. Zero overhead, zero config.
 
 ```
 ┌─────────────────┐     PostToolUse hook     ┌─────────────────┐
@@ -102,11 +96,11 @@ Uses Claude Code's native hooks system to capture tool calls directly. Zero conf
 └─────────────────┘                          └─────────────────┘
 ```
 
-**Captures:** All tool calls (Bash, Read, Write, Edit, Glob, Grep, MCP tools, etc.) with input/output details. MCP tool calls are logged with server name, method, and truncated I/O summaries.
+**Captures:** All tool calls (Bash, Read, Write, Edit, Glob, Grep, MCP tools, etc.) with input/output details, MCP server name, method, and truncated I/O summaries.
 
-### Method 2: STDIO Proxy (Claude Desktop, Cursor, VS Code)
+### 2. STDIO Proxy (Claude Desktop, Cursor, VS Code)
 
-Wraps any stdio-based MCP server to capture JSON-RPC traffic.
+Wraps any stdio-based MCP server to capture JSON-RPC traffic transparently.
 
 ```
 ┌─────────────────┐         ┌─────────────────┐         ┌─────────────────┐
@@ -114,7 +108,6 @@ Wraps any stdio-based MCP server to capture JSON-RPC traffic.
 │ (Claude Desktop │ ──────► │     -proxy      │ ──────► │  (e.g. github)  │
 │  Cursor, etc.)  │ ◄────── │                 │ ◄────── │                 │
 └─────────────────┘ stdout  └────────┬────────┘ stdout  └─────────────────┘
-                                     │
                                      │ records events
                                      ▼
                             ┌─────────────────┐
@@ -143,24 +136,52 @@ Wraps any stdio-based MCP server to capture JSON-RPC traffic.
 }
 ```
 
-### Method 3: Hub/Router Mode
+### 3. Hub/Router Mode
 
-Aggregate multiple MCP servers behind Agent Recorder. All traffic is recorded and routed to the correct upstream.
+Aggregate multiple MCP servers behind one endpoint. All traffic is recorded and routed.
 
 ```bash
-# Add upstream servers
 agent-recorder upstream add github https://api.github.com/mcp
 agent-recorder upstream add tessl https://tessl.io/mcp --header "Authorization: Bearer $TOKEN"
-
-# List configured upstreams
 agent-recorder upstream list
 ```
 
 ---
 
-## CLI Commands
+## Terminal UI
 
-### Service Management
+Browse sessions and inspect events interactively:
+
+```bash
+agent-recorder tui
+```
+
+```
+┌─ Sessions ──────────────────────────────────────────────────────────┐
+│ ID        Status     Events  Last Active  Duration                  │
+│ a3f1b2c   active        47  2s ago       12m 34s                   │
+│ d8e4f5a   completed    132  1h ago       45m 12s                   │
+│ b7c9d1e   completed     23  3h ago        5m 08s                   │
+└─────────────────────────────────────────────────────────────────────┘
+  ↑/↓ navigate  Enter view  / search  r refresh  q quit
+
+┌─ Events (session a3f1b2c) ──────────────────────────────────────────┐
+│ Seq  Type        Name              Server        Duration  Status   │
+│   1  tool_call   Read              claude-code      12ms  success   │
+│   2  tool_call   search_repos      github          340ms  success   │
+│   3  subagent    Explore           claude-code    1.2s    success   │
+│   4  tool_call   Bash              claude-code      89ms  success   │
+│   5  tool_call   Edit              claude-code      15ms  success   │
+└─────────────────────────────────────────────────────────────────────┘
+  i input  o output  j raw JSON  Tab filter  f follow  Esc back
+```
+
+---
+
+## CLI Reference
+
+<details>
+<summary><strong>Service Management</strong></summary>
 
 ```bash
 agent-recorder start [--daemon]     # Start the recording service
@@ -170,7 +191,10 @@ agent-recorder status               # Check service status + provider health
 agent-recorder logs [--tail 50]     # View daemon logs
 ```
 
-### Hooks (Claude Code)
+</details>
+
+<details>
+<summary><strong>Hooks (Claude Code)</strong></summary>
 
 ```bash
 agent-recorder hooks install        # Install hooks into Claude Code
@@ -178,7 +202,10 @@ agent-recorder hooks uninstall      # Remove hooks
 agent-recorder hooks status         # Show hook installation status
 ```
 
-### Sessions
+</details>
+
+<details>
+<summary><strong>Sessions</strong></summary>
 
 ```bash
 agent-recorder tui                  # Interactive terminal UI
@@ -192,7 +219,10 @@ agent-recorder sessions grep <id>   # Search events (--tool, --status, --error, 
 agent-recorder sessions summarize <id> # Metadata summary (--format text|json)
 ```
 
-### Export
+</details>
+
+<details>
+<summary><strong>Export</strong></summary>
 
 ```bash
 agent-recorder export <id>                    # Export to JSONL (default)
@@ -202,8 +232,6 @@ agent-recorder export <id> --format otlp      # OpenTelemetry (Jaeger, Zipkin)
 agent-recorder export <id> -o session.har     # Export to file
 ```
 
-**Export Formats:**
-
 | Format | Use Case                                                      |
 | ------ | ------------------------------------------------------------- |
 | jsonl  | Streaming, piping to other tools                              |
@@ -211,7 +239,10 @@ agent-recorder export <id> -o session.har     # Export to file
 | har    | Import into browser dev tools, Charles Proxy, Postman         |
 | otlp   | Send to Jaeger, Zipkin, Grafana Tempo, any OpenTelemetry tool |
 
-### Upstream / Provider Management
+</details>
+
+<details>
+<summary><strong>Upstream / Provider Management</strong></summary>
 
 ```bash
 agent-recorder upstream add <name> <url>      # Add upstream MCP server
@@ -225,7 +256,10 @@ agent-recorder remove <name>                  # Remove provider
 agent-recorder list                           # List providers
 ```
 
-### Configuration & Setup
+</details>
+
+<details>
+<summary><strong>Configuration & Discovery</strong></summary>
 
 ```bash
 agent-recorder install                        # Set up data directory + Claude config
@@ -237,125 +271,29 @@ agent-recorder configure wrap [--all]         # Wrap MCP servers with proxy
 agent-recorder configure wrap --undo          # Unwrap proxied servers
 ```
 
-### Discovery
+The `discover` command scans six config sources: Claude Code (v2 + legacy), Cursor IDE, VS Code, project-level `.claude/`, project-level `.cursor/`.
 
-The `discover` command scans six configuration sources:
-
-```bash
-agent-recorder discover --verbose
-```
-
-Sources scanned: Claude Code (v2 + legacy), Cursor IDE, VS Code, project-level `.claude/`, project-level `.cursor/`
-
-### Testing
-
-```bash
-agent-recorder mock-mcp [--port 9999]         # Start mock MCP server for testing
-```
+</details>
 
 ---
 
-## Terminal UI (TUI)
+## Privacy & Security
 
-```bash
-agent-recorder tui
-```
-
-### Sessions Screen
-
-| Column      | Description                            |
-| ----------- | -------------------------------------- |
-| ID          | Session UUID (truncated)               |
-| Status      | active / completed / cancelled / error |
-| Events      | Number of recorded events              |
-| Last Active | Time since last event                  |
-| Duration    | Total session duration                 |
-
-**Keys:** `↑/↓` navigate, `Enter` view, `/` search, `r` refresh, `q` quit
-
-### Events Screen
-
-| Column   | Description                   |
-| -------- | ----------------------------- |
-| Seq      | Event sequence number         |
-| Type     | tool_call / subagent / skill  |
-| Name     | Tool/skill/agent name         |
-| Server   | MCP server (or "claude-code") |
-| Duration | Execution time                |
-| Status   | success / error / running     |
-
-**Keys:** `↑/↓` navigate, `Enter` inspect, `Tab` filter, `f` follow mode, `Esc` back
-
-### Event Inspector
-
-View full details of any recorded event:
-
-- **`i`** — Input JSON (tool arguments)
-- **`o`** — Output JSON (tool response)
-- **`j`** — Raw event JSON (all metadata)
-- **`Esc`** — Close inspector
-
----
-
-## MCP Logging
-
-When MCP tools are used, the daemon logs detailed summaries:
-
-```
-[hooks] [tessl] update_skills
-  Input:  {"repository":"skills-repo","branch":"main"}
-  Output: {"updated":3,"created":2}
-
-[hooks] [github] search_repositories
-  Input:  {"query":"agent recorder","per_page":5}
-  Output: {"total_count":12,"items":[{"full_name":"EdytaKucharska/agent_recor...
-```
-
-Built-in tools (Bash, Read, Write, etc.) are recorded silently unless debug mode is enabled.
-
----
-
-## Docker
-
-### Docker Compose (recommended)
-
-```yaml
-# docker-compose.yml
-services:
-  agent-recorder:
-    build: .
-    ports:
-      - "8787:8787"
-    volumes:
-      - agent-recorder-data:/data
-    restart: unless-stopped
-```
-
-```bash
-docker compose up -d
-```
-
-### Docker Build
-
-```bash
-docker build -t agent-recorder .
-docker run -d \
-  -p 8787:8787 \
-  -v agent-recorder-data:/data \
-  -e AR_LISTEN_PORT=8787 \
-  -e AR_DB_PATH=/data/agent-recorder.sqlite \
-  agent-recorder
-```
-
-The image includes a health check at `GET /api/health`.
+| Guarantee                | Detail                                                                                         |
+| ------------------------ | ---------------------------------------------------------------------------------------------- |
+| **No prompt capture**    | Only tool call boundaries are recorded                                                         |
+| **No reasoning capture** | Chain-of-thought is never stored                                                               |
+| **Automatic redaction**  | Keys like `api_key`, `token`, `authorization`, `password`, `secret` are stripped from payloads |
+| **Payload truncation**   | Large payloads are truncated to prevent storage bloat                                          |
+| **Localhost only**       | Daemon binds to `127.0.0.1`, never `0.0.0.0`                                                   |
+| **Opt-in telemetry**     | Anonymous, content-free PostHog analytics — disabled by default                                |
+| **Fail-open**            | Recording/telemetry errors never block the MCP proxy                                           |
 
 ---
 
 ## REST API
 
 All endpoints are localhost-only (`127.0.0.1`).
-
-### Sessions
 
 | Method | Endpoint                                    | Description         |
 | ------ | ------------------------------------------- | ------------------- |
@@ -373,83 +311,10 @@ All endpoints are localhost-only (`127.0.0.1`).
 
 ---
 
-## Binaries
-
-The npm package includes three binaries:
-
-| Binary                 | Description                          |
-| ---------------------- | ------------------------------------ |
-| `agent-recorder`       | Main CLI                             |
-| `agent-recorder-hook`  | Hook handler (called by Claude Code) |
-| `agent-recorder-proxy` | STDIO proxy wrapper for MCP servers  |
-
----
-
-## Data Model
-
-### Sessions
-
-```typescript
-interface Session {
-  id: string; // UUID
-  status: "active" | "completed" | "cancelled" | "error";
-  startedAt: string; // ISO 8601
-  endedAt: string | null;
-}
-```
-
-### Events
-
-Events form a hierarchy: agent → subagent → skill → tool
-
-```typescript
-interface Event {
-  id: string;
-  sessionId: string;
-  parentEventId: string | null;
-  sequence: number; // Per-session ordering
-  eventType: "agent_call" | "subagent_call" | "skill_call" | "tool_call";
-  toolName: string | null;
-  mcpMethod: string | null; // e.g. "tools/call"
-  upstreamKey: string | null; // MCP server name
-  status: "running" | "success" | "error" | "timeout" | "cancelled";
-  errorCategory: string | null; // Stable category enum
-  inputJson: string | null; // Redacted tool arguments
-  outputJson: string | null; // Redacted tool result
-  startedAt: string;
-  endedAt: string | null;
-}
-```
-
-### Error Categories
-
-Errors are mapped to stable categories for filtering:
-
-- `downstream_timeout` — MCP server timed out
-- `downstream_unreachable` — MCP server not reachable
-- `jsonrpc_invalid` — Malformed JSON-RPC request
-- `jsonrpc_error` — JSON-RPC error response
-- `unknown` — Unclassified error
-
----
-
-## Privacy & Security
-
-- **Local-first:** All data stored in `~/.agent-recorder/` (SQLite)
-- **No cloud sync:** Data never leaves your machine
-- **No prompt capture:** Only tool call boundaries are recorded
-- **No reasoning capture:** Chain-of-thought is not stored
-- **Redaction:** Sensitive keys (`api_key`, `token`, `authorization`, `password`, `secret`) are automatically redacted from JSON payloads
-- **Truncation:** Large payloads are truncated to prevent storage bloat
-- **Localhost only:** Daemon binds to `127.0.0.1`, not `0.0.0.0`
-- **Opt-in telemetry:** Anonymous, content-free PostHog analytics (disabled by default)
-- **Fail-open:** Recording/telemetry errors never block the MCP proxy
-
----
-
 ## Configuration
 
-### Environment Variables
+<details>
+<summary><strong>Environment Variables</strong></summary>
 
 | Variable                   | Default                      | Description                    |
 | -------------------------- | ---------------------------- | ------------------------------ |
@@ -462,68 +327,57 @@ Errors are mapped to stable categories for filtering:
 | `AR_DEBUG_PROXY`           | `0`                          | Enable proxy debug logging     |
 | `AGENT_RECORDER_TELEMETRY` | `off`                        | Telemetry: `on` or `off`       |
 
+</details>
+
 ---
 
-## Tech Stack
+## Architecture
 
-- **Runtime:** Node.js 20+ / TypeScript (strict, ES2022)
-- **CLI:** Commander.js
-- **Service:** Fastify (localhost only)
-- **Database:** SQLite (better-sqlite3)
-- **TUI:** Ink (React for CLI)
-- **Docker:** Node.js 20 Alpine, multi-stage build
-- **Packaging:** npm with vendored monorepo dependencies
+```
+packages/
+├── types/          # Portable type definitions (zero deps)
+├── core/           # Event model, redaction, SQLite storage
+├── service/        # Fastify daemon: MCP proxy + recorder + REST API
+├── cli/            # CLI commands + TUI (Ink)
+├── hooks/          # Claude Code hook handlers
+├── stdio-proxy/    # STDIO proxy for MCP server observability
+├── ui/             # React + Vite web UI
+└── dist/           # Distribution bundler for npm publishing
+```
+
+**Dependency flow:** `types` → `core` → `service` / `hooks` / `stdio-proxy` → `cli` → `dist`
+
+**Tech stack:** TypeScript (strict) · Node.js 20+ · Fastify · SQLite (better-sqlite3) · Commander.js · Ink (TUI) · React + Vite (web UI)
 
 ---
 
 ## Development
 
 ```bash
-# Clone and install
 git clone https://github.com/EdytaKucharska/agent_recorder
 cd agent_recorder
 pnpm install
-
-# Build all packages
-pnpm build
-
-# Run tests
-pnpm test
-
-# Run linter
-pnpm lint
-
-# Build distribution package
-pnpm build:dist
-
-# Smoke test the distribution
-pnpm smoke:dist
-
-# Test plugin locally
-claude --plugin-dir .
+pnpm build          # Build all packages
+pnpm test           # Run tests
+pnpm lint           # Lint
+pnpm build:dist     # Build distribution package
+pnpm smoke:dist     # Smoke test the distribution
 ```
 
-### Monorepo Structure
+### Binaries
 
-```
-.claude-plugin/        # Claude Code plugin manifest
-commands/              # Plugin slash commands
-hooks/                 # Plugin hooks configuration
-packages/
-├── core/              # Types, SQLite, utilities
-├── service/           # Fastify daemon + MCP proxy + REST API
-├── cli/               # Commander CLI + TUI (Ink)
-├── hooks/             # Claude Code hook handler
-├── stdio-proxy/       # STDIO proxy for MCP servers
-├── ui/                # React + Vite web UI (reserved)
-└── dist/              # Published npm package
-```
+| Binary                 | Description                          |
+| ---------------------- | ------------------------------------ |
+| `agent-recorder`       | Main CLI                             |
+| `agent-recorder-hook`  | Hook handler (called by Claude Code) |
+| `agent-recorder-proxy` | STDIO proxy wrapper for MCP servers  |
 
 ---
 
 ## Troubleshooting
 
-### Hooks not working
+<details>
+<summary><strong>Hooks not working</strong></summary>
 
 ```bash
 agent-recorder hooks status     # Check hook installation
@@ -531,36 +385,45 @@ agent-recorder doctor           # Full diagnostics
 agent-recorder status           # Verify daemon is running
 ```
 
-If hooks show as null in `~/.claude/settings.json`, reinstall:
+If hooks show as null in `~/.claude/settings.json`, reinstall with `agent-recorder hooks install` and restart Claude Code.
 
-```bash
-agent-recorder hooks install
-# Then restart Claude Code
-```
+</details>
 
-### No events recorded
+<details>
+<summary><strong>No events recorded</strong></summary>
 
 1. Ensure the daemon is running: `agent-recorder status`
 2. Restart Claude Code after installing hooks
 3. Check logs: `agent-recorder logs --tail 100`
 4. Run diagnostics: `agent-recorder doctor`
 
-### MCP servers not detected
+</details>
+
+<details>
+<summary><strong>MCP servers not detected</strong></summary>
 
 ```bash
 agent-recorder discover --verbose   # Scan all MCP config sources
 agent-recorder diagnose mcp         # MCP-specific diagnostics
 ```
 
-### TUI crashes
+</details>
 
-Ensure your terminal supports 256 colors and Unicode.
+---
+
+## Contributing
+
+Contributions are welcome! Please open an issue first to discuss what you'd like to change.
+
+```bash
+pnpm install && pnpm build && pnpm test   # Verify everything passes before submitting
+```
 
 ---
 
 ## License
 
-MIT
+[MIT](LICENSE) © Edyta Kucharska
 
 ---
 
@@ -568,4 +431,10 @@ MIT
 
 - [Claude Code](https://claude.ai/code) — AI coding assistant
 - [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) — Standard for AI tool integration
-- [docs/article-mcp-observability-constraints.md](docs/article-mcp-observability-constraints.md) — Technical writeup on MCP observability challenges
+- [MCP Observability Constraints](docs/article-mcp-observability-constraints.md) — Technical writeup on MCP observability challenges
+
+---
+
+<p align="center">
+  <sub>If Agent Recorder helped you debug an agent session, consider giving it a ⭐</sub>
+</p>
