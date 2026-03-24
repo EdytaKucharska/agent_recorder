@@ -40,6 +40,8 @@ export interface RecordToolCallOptions {
  * Capped at 10k entries to avoid unbounded memory growth in long-running daemons.
  */
 const budgetWarnedSessions = new Set<string>();
+// Safety cap: stop tracking new sessions beyond this limit rather than clearing
+// (clearing would cause re-flooding for all previously warned sessions).
 const MAX_BUDGET_WARNED_SESSIONS = 10_000;
 
 /**
@@ -102,15 +104,19 @@ export function recordToolCall(options: RecordToolCallOptions): string | null {
       outputTokens,
     });
 
-    // Budget check — fail-open, never throws
-    if (contextBudgetTokens) {
+    // Budget check — fail-open, never throws.
+    // Only run the 3-query getTokenSummary when we haven't warned yet for this session,
+    // avoiding repeated DB overhead on every tool call after the threshold is crossed.
+    if (contextBudgetTokens && !budgetWarnedSessions.has(sessionId)) {
       try {
         const summary = getTokenSummary(db, sessionId, contextBudgetTokens);
-        if (summary.budgetExceeded && !budgetWarnedSessions.has(sessionId)) {
-          if (budgetWarnedSessions.size >= MAX_BUDGET_WARNED_SESSIONS) {
-            budgetWarnedSessions.clear();
+        if (summary.budgetExceeded) {
+          // Cap the set to avoid unbounded memory growth in very long-running daemons.
+          // We intentionally do NOT clear() on eviction to avoid re-flooding logs;
+          // instead we simply stop tracking new sessions once the cap is reached.
+          if (budgetWarnedSessions.size < MAX_BUDGET_WARNED_SESSIONS) {
+            budgetWarnedSessions.add(sessionId);
           }
-          budgetWarnedSessions.add(sessionId);
           console.warn(
             JSON.stringify({
               type: "context_budget_warning",

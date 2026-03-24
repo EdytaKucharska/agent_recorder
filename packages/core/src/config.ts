@@ -82,11 +82,13 @@ export function loadConfig(): Config {
   const upstreamsPath =
     process.env["AR_UPSTREAMS_PATH"] ?? getDefaultUpstreamsPath();
   const debugProxy = process.env["AR_DEBUG_PROXY"] === "1";
-  const contextBudgetTokens = parseInt(
-    process.env["AR_CONTEXT_BUDGET_TOKENS"] ??
-      String(DEFAULT_CONTEXT_BUDGET_TOKENS),
+  const _parsedBudget = parseInt(
+    process.env["AR_CONTEXT_BUDGET_TOKENS"] ?? "",
     10
   );
+  const contextBudgetTokens = Number.isNaN(_parsedBudget)
+    ? DEFAULT_CONTEXT_BUDGET_TOKENS
+    : _parsedBudget;
 
   return {
     listenPort,

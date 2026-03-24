@@ -36,6 +36,20 @@ describe("estimateTokens", () => {
     expect(fromObject).toBe(fromStringDirect);
   });
 
+  it("double-serializes when called with an already-serialized string (known behaviour)", () => {
+    // estimateTokens accepts `unknown` and always calls JSON.stringify internally.
+    // Callers with already-serialized strings should use Math.ceil(str.length / 4)
+    // directly to avoid this.
+    const obj = { name: "test", value: 42 };
+    const serialized = JSON.stringify(obj); // '{"name":"test","value":42}'
+    const fromObject = estimateTokens(obj);
+    const fromString = estimateTokens(serialized); // double-stringifies
+    // Double-stringifying produces a larger (inflated) estimate
+    expect(fromString).toBeGreaterThan(fromObject);
+    // The correct approach for strings is length / 4 directly
+    expect(Math.ceil(serialized.length / 4)).toBe(fromObject);
+  });
+
   it("returns larger estimates for larger payloads", () => {
     const small = { a: 1 };
     const large = { data: "x".repeat(1000) };

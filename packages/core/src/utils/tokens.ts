@@ -5,7 +5,8 @@
 
 /**
  * Estimate token count for any value.
- * Approximation: JSON.stringify length / 4, consistent with GPT-family tokenizers for JSON.
+ * Rough approximation: ~4 characters per token.
+ * Accurate enough for context-budget alerting; not suitable for exact billing.
  */
 export function estimateTokens(value: unknown): number {
   return Math.ceil(JSON.stringify(value ?? "").length / 4);

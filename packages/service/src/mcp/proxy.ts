@@ -476,6 +476,8 @@ export async function createMcpProxy(
             if (!tool || typeof tool !== "object" || !("name" in tool))
               continue;
             const toolName = (tool as { name: string }).name;
+            // Tools are namespaced as "<providerId>.<toolName>" by aggregateToolsList above,
+            // so splitting on the first dot safely recovers the upstream key.
             const dotIdx = toolName.indexOf(".");
             const upstreamKey = dotIdx > 0 ? toolName.slice(0, dotIdx) : null;
             try {
