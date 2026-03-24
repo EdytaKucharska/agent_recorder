@@ -124,8 +124,12 @@ Wraps any stdio-based MCP server to capture JSON-RPC traffic transparently.
     "github": {
       "command": "agent-recorder-proxy",
       "args": [
-        "-e", "http://localhost:8787/api/stdio",
-        "--", "npx", "-y", "@modelcontextprotocol/server-github"
+        "-e",
+        "http://localhost:8787/api/stdio",
+        "--",
+        "npx",
+        "-y",
+        "@modelcontextprotocol/server-github"
       ]
     }
   }
@@ -275,15 +279,15 @@ The `discover` command scans six config sources: Claude Code (v2 + legacy), Curs
 
 ## Privacy & Security
 
-| Guarantee | Detail |
-|---|---|
-| **No prompt capture** | Only tool call boundaries are recorded |
-| **No reasoning capture** | Chain-of-thought is never stored |
-| **Automatic redaction** | Keys like `api_key`, `token`, `authorization`, `password`, `secret` are stripped from payloads |
-| **Payload truncation** | Large payloads are truncated to prevent storage bloat |
-| **Localhost only** | Daemon binds to `127.0.0.1`, never `0.0.0.0` |
-| **Opt-in telemetry** | Anonymous, content-free PostHog analytics — disabled by default |
-| **Fail-open** | Recording/telemetry errors never block the MCP proxy |
+| Guarantee                | Detail                                                                                         |
+| ------------------------ | ---------------------------------------------------------------------------------------------- |
+| **No prompt capture**    | Only tool call boundaries are recorded                                                         |
+| **No reasoning capture** | Chain-of-thought is never stored                                                               |
+| **Automatic redaction**  | Keys like `api_key`, `token`, `authorization`, `password`, `secret` are stripped from payloads |
+| **Payload truncation**   | Large payloads are truncated to prevent storage bloat                                          |
+| **Localhost only**       | Daemon binds to `127.0.0.1`, never `0.0.0.0`                                                   |
+| **Opt-in telemetry**     | Anonymous, content-free PostHog analytics — disabled by default                                |
+| **Fail-open**            | Recording/telemetry errors never block the MCP proxy                                           |
 
 ---
 
