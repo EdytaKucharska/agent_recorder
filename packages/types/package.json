@@ -1,6 +1,6 @@
 {
   "name": "@agent-recorder/types",
-  "version": "2.0.13",
+  "version": "2.0.14",
   "description": "Portable type definitions for Agent Recorder — zero dependencies",
   "type": "module",
   "main": "dist/index.js",

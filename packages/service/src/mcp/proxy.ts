@@ -11,6 +11,8 @@ import type { Config, HttpProvider } from "@agent-recorder/core";
 import {
   readProvidersFile,
   getDefaultProvidersPath,
+  upsertToolSchemaMetric,
+  estimateTokens,
 } from "@agent-recorder/core";
 import { readFileSync, watch, existsSync, type FSWatcher } from "node:fs";
 import { dirname, basename } from "node:path";
@@ -464,6 +466,34 @@ export async function createMcpProxy(
         timeoutMs,
         debugProxy
       );
+
+      // Record schema token metrics for each tool — fail-open
+      if (sessionId && !isErrorResponse(response)) {
+        const result = response.result;
+        if (result && typeof result === "object" && "tools" in result) {
+          const tools = (result as { tools: unknown[] }).tools;
+          for (const tool of tools) {
+            if (!tool || typeof tool !== "object" || !("name" in tool))
+              continue;
+            const toolName = (tool as { name: string }).name;
+            // Tools are namespaced as "<providerId>.<toolName>" by aggregateToolsList above,
+            // so splitting on the first dot safely recovers the upstream key.
+            const dotIdx = toolName.indexOf(".");
+            const upstreamKey = dotIdx > 0 ? toolName.slice(0, dotIdx) : null;
+            try {
+              upsertToolSchemaMetric(db, {
+                sessionId,
+                upstreamKey,
+                toolName,
+                schemaTokens: estimateTokens(tool),
+              });
+            } catch {
+              // Fail-open
+            }
+          }
+        }
+      }
+
       return reply.code(200).send(response);
     }
 
@@ -511,6 +541,7 @@ export async function createMcpProxy(
               endedAt: new Date().toISOString(),
               redactKeys,
               debugProxy,
+              contextBudgetTokens: config.contextBudgetTokens,
             });
           }
 
@@ -625,6 +656,7 @@ export async function createMcpProxy(
             endedAt,
             redactKeys,
             debugProxy,
+            contextBudgetTokens: config.contextBudgetTokens,
           });
         }
 
@@ -719,6 +751,7 @@ export async function createMcpProxy(
           endedAt,
           redactKeys,
           debugProxy,
+          contextBudgetTokens: config.contextBudgetTokens,
         });
       }
 
@@ -801,6 +834,7 @@ export async function createMcpProxy(
         endedAt,
         redactKeys,
         debugProxy,
+        contextBudgetTokens: config.contextBudgetTokens,
       });
     }
 

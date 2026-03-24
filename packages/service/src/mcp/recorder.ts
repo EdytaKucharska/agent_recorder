@@ -11,6 +11,8 @@ import {
   deriveErrorCategory,
   insertEvent,
   redactAndTruncate,
+  getTokenSummary,
+  estimateSerializedTokens,
   type EventStatus,
 } from "@agent-recorder/core";
 
@@ -29,6 +31,23 @@ export interface RecordToolCallOptions {
   redactKeys: string[];
   /** Enable debug logging (metadata only, no payloads) */
   debugProxy?: boolean;
+  /** Context budget in tokens; warn when session exceeds this */
+  contextBudgetTokens?: number;
+}
+
+/**
+ * Track sessions where a budget warning has already been emitted.
+ * Prevents log spam on every tool call after the threshold is crossed.
+ * Capped at 10k entries to avoid unbounded memory growth in long-running daemons.
+ */
+const budgetWarnedSessions = new Set<string>();
+// Safety cap: stop tracking new sessions beyond this limit rather than clearing
+// (clearing would cause re-flooding for all previously warned sessions).
+const MAX_BUDGET_WARNED_SESSIONS = 10_000;
+
+/** Reset the warned-sessions set. Exposed for test isolation only. */
+export function resetBudgetWarnedSessions(): void {
+  budgetWarnedSessions.clear();
 }
 
 /**
@@ -53,27 +72,22 @@ export function recordToolCall(options: RecordToolCallOptions): string | null {
     endedAt,
     redactKeys,
     debugProxy,
+    contextBudgetTokens,
   } = options;
 
   try {
-    // Allocate sequence atomically
     const sequence = allocateSequence(db, sessionId);
 
-    // Redact and truncate input/output
     const inputJson = redactAndTruncate(input, redactKeys);
     const outputJson = redactAndTruncate(output, redactKeys);
-
-    // Derive error category from status and redacted output (no content logging)
     const errorCategory = deriveErrorCategory(status, outputJson);
 
-    // Generate event ID
+    // Estimate tokens from already-serialized strings using byte-accurate counting
+    const inputTokens = estimateSerializedTokens(inputJson);
+    const outputTokens = estimateSerializedTokens(outputJson);
+
     const eventId = randomUUID();
 
-    // Insert event with proper column mapping:
-    // - agentName = "claude-code" (stable identifier for the agent)
-    // - toolName = actual tool name from params.name
-    // - mcpMethod = "tools/call" (or whatever MCP method was invoked)
-    // - upstreamKey = server key from router mode (null for legacy single-upstream)
     insertEvent(db, {
       id: eventId,
       sessionId,
@@ -92,21 +106,63 @@ export function recordToolCall(options: RecordToolCallOptions): string | null {
       inputJson,
       outputJson,
       errorCategory,
+      inputTokens,
+      outputTokens,
     });
 
-    // Debug logging: metadata only, no payloads
+    // Budget check — fail-open, never throws.
+    // Fast-path: single SUM query to check if budget is exceeded before running the
+    // full 3-query getTokenSummary (which is only needed when emitting the warning).
+    if (contextBudgetTokens && !budgetWarnedSessions.has(sessionId)) {
+      try {
+        const { callTotal } = db
+          .prepare(
+            `SELECT COALESCE(SUM(input_tokens), 0) + COALESCE(SUM(output_tokens), 0) AS callTotal
+             FROM events WHERE session_id = ? AND event_type = 'tool_call'`
+          )
+          .get(sessionId) as { callTotal: number };
+        const { schemaTotal } = db
+          .prepare(
+            `SELECT COALESCE(SUM(schema_tokens), 0) AS schemaTotal
+             FROM tool_schema_metrics WHERE session_id = ?`
+          )
+          .get(sessionId) as { schemaTotal: number };
+
+        if (callTotal + schemaTotal > contextBudgetTokens) {
+          // Budget exceeded — fetch full summary for the warning payload
+          const summary = getTokenSummary(db, sessionId, contextBudgetTokens);
+          // Cap the set to avoid unbounded memory growth in very long-running daemons.
+          // Warn and track only if below the cap; sessions above the cap are
+          // silently skipped rather than re-warned on every call.
+          if (budgetWarnedSessions.size < MAX_BUDGET_WARNED_SESSIONS) {
+            budgetWarnedSessions.add(sessionId);
+            console.warn(
+              JSON.stringify({
+                type: "context_budget_warning",
+                sessionId,
+                estimatedTokens: summary.estimatedTotalTokens,
+                budgetTokens: contextBudgetTokens,
+                percentUsed: summary.percentUsed,
+              })
+            );
+          }
+        }
+      } catch {
+        // Fail-open
+      }
+    }
+
     if (debugProxy) {
       const durationMs =
         new Date(endedAt).getTime() - new Date(startedAt).getTime();
       const upstreamInfo = upstreamKey ? ` upstream=${upstreamKey}` : "";
       console.log(
-        `[DEBUG] tool_call: session=${sessionId} seq=${sequence} tool=${toolName}${upstreamInfo} status=${status} duration=${durationMs}ms`
+        `[DEBUG] tool_call: session=${sessionId} seq=${sequence} tool=${toolName}${upstreamInfo} status=${status} duration=${durationMs}ms tokens=${inputTokens}+${outputTokens}`
       );
     }
 
     return eventId;
   } catch (error) {
-    // Fail-open: log error but don't throw
     console.error("Failed to record tool call:", error);
     return null;
   }

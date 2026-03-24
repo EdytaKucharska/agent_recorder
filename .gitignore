@@ -40,10 +40,15 @@ Thumbs.db
 .idea/
 .vscode/
 *.swp
+.kiro
 
 # Claude / agent output (optional)
 .claude/local/
 .claude/cache/
 .claude
 *.tgz
+
+# Local dev environment configs (personal, not part of the project)
+.mcp.json
+.railway/
 

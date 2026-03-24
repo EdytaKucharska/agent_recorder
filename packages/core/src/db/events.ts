@@ -39,6 +39,8 @@ interface EventRow {
   input_json: string | null;
   output_json: string | null;
   error_category: string | null;
+  input_tokens: number | null;
+  output_tokens: number | null;
   created_at: string;
 }
 
@@ -63,6 +65,8 @@ function rowToEvent(row: EventRow): BaseEvent {
     inputJson: row.input_json,
     outputJson: row.output_json,
     errorCategory: row.error_category as ErrorCategory | null,
+    inputTokens: row.input_tokens,
+    outputTokens: row.output_tokens,
     createdAt: row.created_at,
   };
 }
@@ -77,8 +81,9 @@ export function insertEvent(
       id, session_id, parent_event_id, sequence, event_type,
       agent_role, agent_name, skill_name, tool_name, mcp_method, upstream_key,
       correlation_id,
-      started_at, ended_at, status, input_json, output_json, error_category, created_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+      started_at, ended_at, status, input_json, output_json, error_category,
+      input_tokens, output_tokens, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
   `);
 
   stmt.run(
@@ -99,7 +104,9 @@ export function insertEvent(
     event.status,
     event.inputJson ?? null,
     event.outputJson ?? null,
-    event.errorCategory ?? null
+    event.errorCategory ?? null,
+    event.inputTokens ?? null,
+    event.outputTokens ?? null
   );
 
   return getEventById(db, event.id)!;
@@ -194,19 +201,27 @@ export function completeEvent(
   status: EventStatus,
   endedAt: string,
   outputJson?: string | null,
-  errorCategory?: ErrorCategory | null
+  errorCategory?: ErrorCategory | null,
+  outputTokens?: number | null
 ): BaseEvent | null {
   // Only preserve existing output when the caller omits outputJson entirely.
   // Explicit null clears the field; a string overwrites it.
   const useCoalesce = outputJson === undefined;
   const sql = useCoalesce
-    ? `UPDATE events SET status = ?, ended_at = ?, error_category = ? WHERE id = ? AND status = 'running'`
-    : `UPDATE events SET status = ?, ended_at = ?, output_json = ?, error_category = ? WHERE id = ? AND status = 'running'`;
+    ? `UPDATE events SET status = ?, ended_at = ?, output_tokens = COALESCE(?, output_tokens), error_category = ? WHERE id = ? AND status = 'running'`
+    : `UPDATE events SET status = ?, ended_at = ?, output_json = ?, output_tokens = COALESCE(?, output_tokens), error_category = ? WHERE id = ? AND status = 'running'`;
 
   const stmt = db.prepare(sql);
   const result = useCoalesce
-    ? stmt.run(status, endedAt, errorCategory ?? null, id)
-    : stmt.run(status, endedAt, outputJson, errorCategory ?? null, id);
+    ? stmt.run(status, endedAt, outputTokens ?? null, errorCategory ?? null, id)
+    : stmt.run(
+        status,
+        endedAt,
+        outputJson,
+        outputTokens ?? null,
+        errorCategory ?? null,
+        id
+      );
 
   if (result.changes === 0) {
     return null;

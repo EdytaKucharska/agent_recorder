@@ -29,3 +29,9 @@ export {
   type EventFilterOptions,
 } from "./events.js";
 export { allocateSequence, getCurrentSequence } from "./sequences.js";
+export {
+  upsertToolSchemaMetric,
+  getTokenSummary,
+  type UpsertToolSchemaMetricInput,
+  type TokenSummary,
+} from "./token-metrics.js";
