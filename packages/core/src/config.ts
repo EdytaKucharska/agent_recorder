@@ -48,6 +48,9 @@ export interface Config {
   contextBudgetTokens: number;
 }
 
+/** Default context budget in tokens (~75% of Claude's 200k context window) */
+export const DEFAULT_CONTEXT_BUDGET_TOKENS = 150000;
+
 const DEFAULT_REDACT_KEYS = [
   "authorization",
   "Authorization",
@@ -80,7 +83,8 @@ export function loadConfig(): Config {
     process.env["AR_UPSTREAMS_PATH"] ?? getDefaultUpstreamsPath();
   const debugProxy = process.env["AR_DEBUG_PROXY"] === "1";
   const contextBudgetTokens = parseInt(
-    process.env["AR_CONTEXT_BUDGET_TOKENS"] ?? "150000",
+    process.env["AR_CONTEXT_BUDGET_TOKENS"] ??
+      String(DEFAULT_CONTEXT_BUDGET_TOKENS),
     10
   );
 

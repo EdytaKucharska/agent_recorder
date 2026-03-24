@@ -25,7 +25,6 @@ import {
   redactAndTruncate,
   redactJson,
   deriveErrorCategory,
-  estimateTokens,
   type InsertEventInput,
   type EventStatus,
   type SessionStatus,
@@ -457,7 +456,8 @@ export async function registerHooksRoutes(
               startedAt: now,
               status: "running",
               inputJson,
-              inputTokens: inputJson != null ? estimateTokens(inputJson) : null,
+              inputTokens:
+                inputJson != null ? Math.ceil(inputJson.length / 4) : null,
             };
 
             insertEvent(db, eventInput);
@@ -514,7 +514,9 @@ export async function registerHooksRoutes(
             const runningEvent = findRunningEvent(db, session.id, cleanName);
 
             const outputTokens =
-              outputJsonStr != null ? estimateTokens(outputJsonStr) : null;
+              outputJsonStr != null
+                ? Math.ceil(outputJsonStr.length / 4)
+                : null;
 
             if (runningEvent) {
               // Complete the existing running event
@@ -584,7 +586,7 @@ export async function registerHooksRoutes(
                 errorCategory,
                 inputTokens:
                   standaloneInputJson != null
-                    ? estimateTokens(standaloneInputJson)
+                    ? Math.ceil(standaloneInputJson.length / 4)
                     : null,
                 outputTokens,
               };

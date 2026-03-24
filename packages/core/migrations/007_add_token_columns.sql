@@ -13,3 +13,5 @@ CREATE TABLE IF NOT EXISTS tool_schema_metrics (
 );
 CREATE INDEX IF NOT EXISTS idx_tsm_session  ON tool_schema_metrics(session_id);
 CREATE INDEX IF NOT EXISTS idx_tsm_upstream ON tool_schema_metrics(upstream_key);
+-- COALESCE handles NULL upstream_key so each (session, upstream, tool) is unique
+CREATE UNIQUE INDEX IF NOT EXISTS idx_tsm_unique ON tool_schema_metrics(session_id, COALESCE(upstream_key, ''), tool_name);

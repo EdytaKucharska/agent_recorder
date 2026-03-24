@@ -11,7 +11,6 @@ import {
   deriveErrorCategory,
   insertEvent,
   redactAndTruncate,
-  estimateTokens,
   getTokenSummary,
   type EventStatus,
 } from "@agent-recorder/core";
@@ -38,8 +37,10 @@ export interface RecordToolCallOptions {
 /**
  * Track sessions where a budget warning has already been emitted.
  * Prevents log spam on every tool call after the threshold is crossed.
+ * Capped at 10k entries to avoid unbounded memory growth in long-running daemons.
  */
 const budgetWarnedSessions = new Set<string>();
+const MAX_BUDGET_WARNED_SESSIONS = 10_000;
 
 /**
  * Record a tool call event to the database.
@@ -73,9 +74,9 @@ export function recordToolCall(options: RecordToolCallOptions): string | null {
     const outputJson = redactAndTruncate(output, redactKeys);
     const errorCategory = deriveErrorCategory(status, outputJson);
 
-    // Estimate tokens from already-redacted payloads
-    const inputTokens = estimateTokens(inputJson);
-    const outputTokens = estimateTokens(outputJson);
+    // Estimate tokens from already-serialized strings (length / 4, no re-stringify)
+    const inputTokens = Math.ceil(inputJson.length / 4);
+    const outputTokens = Math.ceil(outputJson.length / 4);
 
     const eventId = randomUUID();
 
@@ -106,6 +107,9 @@ export function recordToolCall(options: RecordToolCallOptions): string | null {
       try {
         const summary = getTokenSummary(db, sessionId, contextBudgetTokens);
         if (summary.budgetExceeded && !budgetWarnedSessions.has(sessionId)) {
+          if (budgetWarnedSessions.size >= MAX_BUDGET_WARNED_SESSIONS) {
+            budgetWarnedSessions.clear();
+          }
           budgetWarnedSessions.add(sessionId);
           console.warn(
             JSON.stringify({

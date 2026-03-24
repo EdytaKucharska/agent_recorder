@@ -12,6 +12,7 @@ import { registerEventsRoutes } from "./routes/events.js";
 import { registerHooksRoutes } from "./routes/hooks.js";
 import { registerStdioRoutes } from "./routes/stdio.js";
 import { registerTokensRoutes } from "./routes/tokens.js";
+import { DEFAULT_CONTEXT_BUDGET_TOKENS } from "@agent-recorder/core";
 import type { DaemonContext } from "./daemon-context.js";
 
 export interface CreateServerOptions {
@@ -80,7 +81,7 @@ export async function createServer(
   await registerStdioRoutes(app, { db, debug: debug ?? false });
   await registerTokensRoutes(app, {
     db,
-    contextBudgetTokens: contextBudgetTokens ?? 150000,
+    contextBudgetTokens: contextBudgetTokens ?? DEFAULT_CONTEXT_BUDGET_TOKENS,
   });
 
   return app;

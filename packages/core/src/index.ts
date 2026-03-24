@@ -12,6 +12,7 @@ export {
   loadConfig,
   getActualListenPort,
   getDefaultUpstreamsPath,
+  DEFAULT_CONTEXT_BUDGET_TOKENS,
   type Config,
 } from "./config.js";
 export * from "./daemon-paths.js";

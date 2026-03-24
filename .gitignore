@@ -48,3 +48,7 @@ Thumbs.db
 .claude
 *.tgz
 
+# Local dev environment configs (personal, not part of the project)
+.mcp.json
+.railway/
+

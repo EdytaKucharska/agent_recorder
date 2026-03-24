@@ -208,12 +208,12 @@ export function completeEvent(
   // Explicit null clears the field; a string overwrites it.
   const useCoalesce = outputJson === undefined;
   const sql = useCoalesce
-    ? `UPDATE events SET status = ?, ended_at = ?, error_category = ? WHERE id = ? AND status = 'running'`
+    ? `UPDATE events SET status = ?, ended_at = ?, output_tokens = COALESCE(?, output_tokens), error_category = ? WHERE id = ? AND status = 'running'`
     : `UPDATE events SET status = ?, ended_at = ?, output_json = ?, output_tokens = COALESCE(?, output_tokens), error_category = ? WHERE id = ? AND status = 'running'`;
 
   const stmt = db.prepare(sql);
   const result = useCoalesce
-    ? stmt.run(status, endedAt, errorCategory ?? null, id)
+    ? stmt.run(status, endedAt, outputTokens ?? null, errorCategory ?? null, id)
     : stmt.run(
         status,
         endedAt,

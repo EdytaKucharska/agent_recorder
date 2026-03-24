@@ -18,11 +18,15 @@ export function upsertToolSchemaMetric(
   db: Database.Database,
   input: UpsertToolSchemaMetricInput
 ): void {
+  // Use ON CONFLICT against the expression-based unique index
+  // (session_id, COALESCE(upstream_key, ''), tool_name) to handle NULL upstream_key.
   db.prepare(
     `
     INSERT INTO tool_schema_metrics (id, session_id, upstream_key, tool_name, schema_tokens)
     VALUES (?, ?, ?, ?, ?)
-    ON CONFLICT(id) DO NOTHING
+    ON CONFLICT(session_id, COALESCE(upstream_key, ''), tool_name) DO UPDATE SET
+      schema_tokens = excluded.schema_tokens,
+      recorded_at = datetime('now')
   `
   ).run(
     randomUUID(),
@@ -30,23 +34,6 @@ export function upsertToolSchemaMetric(
     input.upstreamKey ?? null,
     input.toolName,
     input.schemaTokens
-  );
-
-  // Upsert by (session_id, upstream_key, tool_name) — update schema_tokens if row exists
-  db.prepare(
-    `
-    UPDATE tool_schema_metrics
-    SET schema_tokens = ?, recorded_at = datetime('now')
-    WHERE session_id = ?
-      AND tool_name = ?
-      AND (upstream_key IS ? OR (upstream_key IS NULL AND ? IS NULL))
-  `
-  ).run(
-    input.schemaTokens,
-    input.sessionId,
-    input.toolName,
-    input.upstreamKey ?? null,
-    input.upstreamKey ?? null
   );
 }
 
@@ -148,14 +135,18 @@ export function getTokenSummary(
     0
   );
   const estimatedTotalTokens = totalCallTokens + totalSchemaTokens;
-  const percentUsed = Math.round((estimatedTotalTokens / budgetTokens) * 100);
+  // Guard against divide-by-zero when budget is 0 or not configured
+  const percentUsed =
+    budgetTokens > 0
+      ? Math.round((estimatedTotalTokens / budgetTokens) * 100)
+      : 0;
 
   return {
     sessionId,
     estimatedTotalTokens,
     budgetTokens,
     percentUsed,
-    budgetExceeded: estimatedTotalTokens > budgetTokens,
+    budgetExceeded: budgetTokens > 0 && estimatedTotalTokens > budgetTokens,
     byUpstream,
     byTool: toolRows.map((r) => ({
       toolName: r.tool_name ?? "",
