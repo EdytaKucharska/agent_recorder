@@ -29,7 +29,14 @@ export interface CreateServerOptions {
 export async function createServer(
   options: CreateServerOptions
 ): Promise<FastifyInstance> {
-  const { db, currentSessionId, debug, daemonContext, redactKeys, contextBudgetTokens } = options;
+  const {
+    db,
+    currentSessionId,
+    debug,
+    daemonContext,
+    redactKeys,
+    contextBudgetTokens,
+  } = options;
 
   const app = Fastify({
     logger: true,

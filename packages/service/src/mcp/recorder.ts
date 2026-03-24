@@ -107,13 +107,15 @@ export function recordToolCall(options: RecordToolCallOptions): string | null {
         const summary = getTokenSummary(db, sessionId, contextBudgetTokens);
         if (summary.budgetExceeded && !budgetWarnedSessions.has(sessionId)) {
           budgetWarnedSessions.add(sessionId);
-          console.warn(JSON.stringify({
-            type: "context_budget_warning",
-            sessionId,
-            estimatedTokens: summary.estimatedTotalTokens,
-            budgetTokens: contextBudgetTokens,
-            percentUsed: summary.percentUsed,
-          }));
+          console.warn(
+            JSON.stringify({
+              type: "context_budget_warning",
+              sessionId,
+              estimatedTokens: summary.estimatedTotalTokens,
+              budgetTokens: contextBudgetTokens,
+              percentUsed: summary.percentUsed,
+            })
+          );
         }
       } catch {
         // Fail-open
@@ -121,7 +123,8 @@ export function recordToolCall(options: RecordToolCallOptions): string | null {
     }
 
     if (debugProxy) {
-      const durationMs = new Date(endedAt).getTime() - new Date(startedAt).getTime();
+      const durationMs =
+        new Date(endedAt).getTime() - new Date(startedAt).getTime();
       const upstreamInfo = upstreamKey ? ` upstream=${upstreamKey}` : "";
       console.log(
         `[DEBUG] tool_call: session=${sessionId} seq=${sequence} tool=${toolName}${upstreamInfo} status=${status} duration=${durationMs}ms tokens=${inputTokens}+${outputTokens}`

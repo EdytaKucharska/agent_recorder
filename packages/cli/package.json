@@ -1,6 +1,6 @@
 {
   "name": "@agent-recorder/cli",
-  "version": "2.0.13",
+  "version": "2.0.14",
   "description": "CLI for Agent Recorder",
   "type": "module",
   "bin": {

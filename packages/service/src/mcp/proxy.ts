@@ -473,7 +473,8 @@ export async function createMcpProxy(
         if (result && typeof result === "object" && "tools" in result) {
           const tools = (result as { tools: unknown[] }).tools;
           for (const tool of tools) {
-            if (!tool || typeof tool !== "object" || !("name" in tool)) continue;
+            if (!tool || typeof tool !== "object" || !("name" in tool))
+              continue;
             const toolName = (tool as { name: string }).name;
             const dotIdx = toolName.indexOf(".");
             const upstreamKey = dotIdx > 0 ? toolName.slice(0, dotIdx) : null;

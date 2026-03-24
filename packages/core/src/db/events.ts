@@ -214,7 +214,14 @@ export function completeEvent(
   const stmt = db.prepare(sql);
   const result = useCoalesce
     ? stmt.run(status, endedAt, errorCategory ?? null, id)
-    : stmt.run(status, endedAt, outputJson, outputTokens ?? null, errorCategory ?? null, id);
+    : stmt.run(
+        status,
+        endedAt,
+        outputJson,
+        outputTokens ?? null,
+        errorCategory ?? null,
+        id
+      );
 
   if (result.changes === 0) {
     return null;

@@ -18,20 +18,36 @@ export function upsertToolSchemaMetric(
   db: Database.Database,
   input: UpsertToolSchemaMetricInput
 ): void {
-  db.prepare(`
+  db.prepare(
+    `
     INSERT INTO tool_schema_metrics (id, session_id, upstream_key, tool_name, schema_tokens)
     VALUES (?, ?, ?, ?, ?)
     ON CONFLICT(id) DO NOTHING
-  `).run(randomUUID(), input.sessionId, input.upstreamKey ?? null, input.toolName, input.schemaTokens);
+  `
+  ).run(
+    randomUUID(),
+    input.sessionId,
+    input.upstreamKey ?? null,
+    input.toolName,
+    input.schemaTokens
+  );
 
   // Upsert by (session_id, upstream_key, tool_name) — update schema_tokens if row exists
-  db.prepare(`
+  db.prepare(
+    `
     UPDATE tool_schema_metrics
     SET schema_tokens = ?, recorded_at = datetime('now')
     WHERE session_id = ?
       AND tool_name = ?
       AND (upstream_key IS ? OR (upstream_key IS NULL AND ? IS NULL))
-  `).run(input.schemaTokens, input.sessionId, input.toolName, input.upstreamKey ?? null, input.upstreamKey ?? null);
+  `
+  ).run(
+    input.schemaTokens,
+    input.sessionId,
+    input.toolName,
+    input.upstreamKey ?? null,
+    input.upstreamKey ?? null
+  );
 }
 
 export interface TokenSummary {
@@ -56,23 +72,39 @@ export function getTokenSummary(
   budgetTokens: number
 ): TokenSummary {
   // Per-upstream call tokens
-  const upstreamCallRows = db.prepare(`
+  const upstreamCallRows = db
+    .prepare(
+      `
     SELECT upstream_key, COALESCE(SUM(input_tokens), 0) + COALESCE(SUM(output_tokens), 0) AS call_tokens
     FROM events
     WHERE session_id = ? AND event_type = 'tool_call'
     GROUP BY upstream_key
-  `).all(sessionId) as Array<{ upstream_key: string | null; call_tokens: number }>;
+  `
+    )
+    .all(sessionId) as Array<{
+    upstream_key: string | null;
+    call_tokens: number;
+  }>;
 
   // Per-upstream schema tokens
-  const upstreamSchemaRows = db.prepare(`
+  const upstreamSchemaRows = db
+    .prepare(
+      `
     SELECT upstream_key, SUM(schema_tokens) AS schema_tokens
     FROM tool_schema_metrics
     WHERE session_id = ?
     GROUP BY upstream_key
-  `).all(sessionId) as Array<{ upstream_key: string | null; schema_tokens: number }>;
+  `
+    )
+    .all(sessionId) as Array<{
+    upstream_key: string | null;
+    schema_tokens: number;
+  }>;
 
   // Per-tool breakdown
-  const toolRows = db.prepare(`
+  const toolRows = db
+    .prepare(
+      `
     SELECT
       tool_name,
       COUNT(*) AS calls,
@@ -82,7 +114,9 @@ export function getTokenSummary(
     WHERE session_id = ? AND event_type = 'tool_call'
     GROUP BY tool_name
     ORDER BY (total_input_tokens + total_output_tokens) DESC
-  `).all(sessionId) as Array<{
+  `
+    )
+    .all(sessionId) as Array<{
     tool_name: string;
     calls: number;
     total_input_tokens: number;
@@ -90,7 +124,10 @@ export function getTokenSummary(
   }>;
 
   // Merge into byUpstream map
-  const byUpstream: Record<string, { callTokens: number; schemaTokens: number }> = {};
+  const byUpstream: Record<
+    string,
+    { callTokens: number; schemaTokens: number }
+  > = {};
 
   for (const row of upstreamCallRows) {
     const key = row.upstream_key ?? "(default)";
@@ -102,8 +139,14 @@ export function getTokenSummary(
     byUpstream[key]!.schemaTokens = row.schema_tokens;
   }
 
-  const totalCallTokens = Object.values(byUpstream).reduce((s, v) => s + v.callTokens, 0);
-  const totalSchemaTokens = Object.values(byUpstream).reduce((s, v) => s + v.schemaTokens, 0);
+  const totalCallTokens = Object.values(byUpstream).reduce(
+    (s, v) => s + v.callTokens,
+    0
+  );
+  const totalSchemaTokens = Object.values(byUpstream).reduce(
+    (s, v) => s + v.schemaTokens,
+    0
+  );
   const estimatedTotalTokens = totalCallTokens + totalSchemaTokens;
   const percentUsed = Math.round((estimatedTotalTokens / budgetTokens) * 100);
 
