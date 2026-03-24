@@ -12,6 +12,7 @@ import {
   insertEvent,
   redactAndTruncate,
   getTokenSummary,
+  estimateSerializedTokens,
   type EventStatus,
 } from "@agent-recorder/core";
 
@@ -81,9 +82,9 @@ export function recordToolCall(options: RecordToolCallOptions): string | null {
     const outputJson = redactAndTruncate(output, redactKeys);
     const errorCategory = deriveErrorCategory(status, outputJson);
 
-    // Estimate tokens from already-serialized strings (length / 4, no re-stringify)
-    const inputTokens = Math.ceil(inputJson.length / 4);
-    const outputTokens = Math.ceil(outputJson.length / 4);
+    // Estimate tokens from already-serialized strings using byte-accurate counting
+    const inputTokens = estimateSerializedTokens(inputJson);
+    const outputTokens = estimateSerializedTokens(outputJson);
 
     const eventId = randomUUID();
 
@@ -114,14 +115,20 @@ export function recordToolCall(options: RecordToolCallOptions): string | null {
     // full 3-query getTokenSummary (which is only needed when emitting the warning).
     if (contextBudgetTokens && !budgetWarnedSessions.has(sessionId)) {
       try {
-        const { total } = db
+        const { callTotal } = db
           .prepare(
-            `SELECT COALESCE(SUM(input_tokens), 0) + COALESCE(SUM(output_tokens), 0) AS total
+            `SELECT COALESCE(SUM(input_tokens), 0) + COALESCE(SUM(output_tokens), 0) AS callTotal
              FROM events WHERE session_id = ? AND event_type = 'tool_call'`
           )
-          .get(sessionId) as { total: number };
+          .get(sessionId) as { callTotal: number };
+        const { schemaTotal } = db
+          .prepare(
+            `SELECT COALESCE(SUM(schema_tokens), 0) AS schemaTotal
+             FROM tool_schema_metrics WHERE session_id = ?`
+          )
+          .get(sessionId) as { schemaTotal: number };
 
-        if (total > contextBudgetTokens) {
+        if (callTotal + schemaTotal > contextBudgetTokens) {
           // Budget exceeded — fetch full summary for the warning payload
           const summary = getTokenSummary(db, sessionId, contextBudgetTokens);
           // Cap the set to avoid unbounded memory growth in very long-running daemons.

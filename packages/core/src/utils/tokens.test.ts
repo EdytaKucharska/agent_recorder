@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { estimateTokens } from "./tokens.js";
+import { estimateTokens, estimateSerializedTokens } from "./tokens.js";
 
 describe("estimateTokens", () => {
   it("returns a positive integer for a simple object", () => {
@@ -69,5 +69,26 @@ describe("estimateTokens", () => {
 
   it("handles empty object", () => {
     expect(estimateTokens({})).toBe(Math.ceil("{}".length / 4));
+  });
+});
+
+describe("estimateSerializedTokens", () => {
+  it("matches estimateTokens for ASCII JSON", () => {
+    const obj = { query: "SELECT 1" };
+    const serialized = JSON.stringify(obj);
+    expect(estimateSerializedTokens(serialized)).toBe(estimateTokens(obj));
+  });
+
+  it("uses byte-accurate counting for non-ASCII content", () => {
+    const json = JSON.stringify({ text: "こんにちは" });
+    const expected = Math.ceil(new TextEncoder().encode(json).length / 4);
+    expect(estimateSerializedTokens(json)).toBe(expected);
+  });
+
+  it("does not double-serialize strings", () => {
+    const obj = { name: "test" };
+    const serialized = JSON.stringify(obj);
+    // estimateSerializedTokens should give same result as estimateTokens on raw obj
+    expect(estimateSerializedTokens(serialized)).toBe(estimateTokens(obj));
   });
 });
