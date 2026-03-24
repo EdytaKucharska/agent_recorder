@@ -10,6 +10,7 @@ import {
   getDefaultMigrationsDir,
   createSession,
   getEventsBySession,
+  upsertToolSchemaMetric,
 } from "@agent-recorder/core";
 import type Database from "better-sqlite3";
 import { recordToolCall, resetBudgetWarnedSessions } from "./recorder.js";
@@ -135,5 +136,38 @@ describe("recordToolCall — budget alerting", () => {
     });
 
     expect(warnSpy).not.toHaveBeenCalled();
+  });
+
+  it("includes schema tokens in budget check so trigger matches reported value", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    // Seed a large schema metric so schema tokens alone push over the budget
+    upsertToolSchemaMetric(db, {
+      sessionId,
+      upstreamKey: "myserver",
+      toolName: "heavy_tool",
+      schemaTokens: 9999,
+    });
+
+    // Small call payload — call tokens alone won't exceed budget of 5000
+    recordToolCall({
+      db,
+      sessionId,
+      toolName: "light_tool",
+      input: { x: 1 },
+      output: { y: 2 },
+      status: "success",
+      startedAt: new Date().toISOString(),
+      endedAt: new Date().toISOString(),
+      redactKeys: [],
+      contextBudgetTokens: 5000, // exceeded only when schema tokens are included
+    });
+
+    // Warning must fire because callTokens + schemaTokens > 5000
+    expect(warnSpy).toHaveBeenCalledOnce();
+    const warning = JSON.parse(warnSpy.mock.calls[0]![0] as string);
+    expect(warning.type).toBe("context_budget_warning");
+    // estimatedTokens in the warning must reflect schema tokens too
+    expect(warning.estimatedTokens).toBeGreaterThan(5000);
   });
 });

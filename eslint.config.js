@@ -28,6 +28,20 @@ export default [
       ],
       "@typescript-eslint/explicit-function-return-type": "off",
       "@typescript-eslint/no-explicit-any": "warn",
+      // Ban manual `.length / 4` token estimation on serialized strings.
+      // Use estimateSerializedTokens() from @agent-recorder/core instead —
+      // it uses TextEncoder for byte-accurate UTF-8 counting, consistent with
+      // estimateTokens(). String.length is a UTF-16 char count and
+      // under-counts non-ASCII (emoji, CJK, etc.).
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector:
+            "BinaryExpression[operator='/'][right.value=4] > MemberExpression.left[property.name='length']",
+          message:
+            "Use estimateSerializedTokens() from @agent-recorder/core instead of .length / 4. String.length is UTF-16 char count, not UTF-8 bytes.",
+        },
+      ],
     },
   },
   {
