@@ -86,9 +86,10 @@ export function loadConfig(): Config {
     process.env["AR_CONTEXT_BUDGET_TOKENS"] ?? "",
     10
   );
-  const contextBudgetTokens = Number.isNaN(_parsedBudget)
-    ? DEFAULT_CONTEXT_BUDGET_TOKENS
-    : _parsedBudget;
+  const contextBudgetTokens =
+    Number.isFinite(_parsedBudget) && _parsedBudget > 0
+      ? _parsedBudget
+      : DEFAULT_CONTEXT_BUDGET_TOKENS;
 
   return {
     listenPort,

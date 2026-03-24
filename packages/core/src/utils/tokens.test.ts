@@ -50,6 +50,17 @@ describe("estimateTokens", () => {
     expect(Math.ceil(serialized.length / 4)).toBe(fromObject);
   });
 
+  it("handles non-ASCII content with byte-accurate counting", () => {
+    // Non-ASCII chars (e.g. emoji, CJK) encode to more than 1 byte in UTF-8.
+    // TextEncoder-based counting should reflect this; String.length would not.
+    const ascii = { text: "hello world" };
+    const nonAscii = { text: "こんにちは世界" }; // each char is 3 UTF-8 bytes
+    const asciiTokens = estimateTokens(ascii);
+    const nonAsciiTokens = estimateTokens(nonAscii);
+    // nonAscii has fewer visible chars but more bytes, so should have >= tokens
+    expect(nonAsciiTokens).toBeGreaterThanOrEqual(asciiTokens);
+  });
+
   it("returns larger estimates for larger payloads", () => {
     const small = { a: 1 };
     const large = { data: "x".repeat(1000) };

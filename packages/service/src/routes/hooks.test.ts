@@ -422,3 +422,81 @@ describe("Hooks API — SubagentStop + PostToolUse deduplication", () => {
     expect(session!.status).toBe("cancelled");
   });
 });
+
+describe("Hooks API — token recording", () => {
+  let app: FastifyInstance;
+  let db: Database.Database;
+
+  beforeAll(async () => {
+    db = openMemoryDatabase();
+    runMigrations(db, migrationsDir());
+    app = await createServer({ db });
+    await app.ready();
+  });
+
+  afterAll(async () => {
+    await app.close();
+    db.close();
+  });
+
+  it("PreToolUse records non-null inputTokens", async () => {
+    const sessionId = randomUUID();
+
+    await sendHook(app, { hook_type: "SessionStart", session_id: sessionId });
+    await sendHook(app, {
+      hook_type: "PreToolUse",
+      session_id: sessionId,
+      tool_name: "execute_sql",
+      tool_input: { query: "SELECT * FROM users" },
+    });
+
+    const events = getEventsBySession(db, sessionId);
+    const event = events.find((e) => e.toolName === "execute_sql");
+    expect(event).toBeDefined();
+    expect(event!.inputTokens).not.toBeNull();
+    expect(event!.inputTokens!).toBeGreaterThan(0);
+  });
+
+  it("PostToolUse records non-null outputTokens on the completed event", async () => {
+    const sessionId = randomUUID();
+
+    await sendHook(app, { hook_type: "SessionStart", session_id: sessionId });
+    await sendHook(app, {
+      hook_type: "PreToolUse",
+      session_id: sessionId,
+      tool_name: "Read",
+      tool_input: { file_path: "/tmp/foo.ts" },
+    });
+    await sendHook(app, {
+      hook_type: "PostToolUse",
+      session_id: sessionId,
+      tool_name: "Read",
+      tool_response: { content: "export const x = 1;" },
+    });
+
+    const events = getEventsBySession(db, sessionId);
+    const event = events.find((e) => e.toolName === "Read");
+    expect(event).toBeDefined();
+    expect(event!.outputTokens).not.toBeNull();
+    expect(event!.outputTokens!).toBeGreaterThan(0);
+  });
+
+  it("standalone PostToolUse (no PreToolUse) records both input and output tokens", async () => {
+    const sessionId = randomUUID();
+
+    await sendHook(app, { hook_type: "SessionStart", session_id: sessionId });
+    await sendHook(app, {
+      hook_type: "PostToolUse",
+      session_id: sessionId,
+      tool_name: "Glob",
+      tool_input: { pattern: "**/*.ts" },
+      tool_response: { files: ["a.ts", "b.ts"] },
+    });
+
+    const events = getEventsBySession(db, sessionId);
+    const event = events.find((e) => e.toolName === "Glob");
+    expect(event).toBeDefined();
+    expect(event!.inputTokens).not.toBeNull();
+    expect(event!.outputTokens).not.toBeNull();
+  });
+});
