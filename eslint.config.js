@@ -36,8 +36,12 @@ export default [
       "no-restricted-syntax": [
         "error",
         {
+          // Flag `.length / 4` only when `.length` is on an identifier or
+          // member expression (i.e. a string variable). Excludes the correct
+          // pattern `encode(...).length / 4` where the object is a
+          // CallExpression (Uint8Array.length, not String.length).
           selector:
-            "BinaryExpression[operator='/'][right.value=4] > MemberExpression.left[property.name='length']",
+            "BinaryExpression[operator='/'][right.value=4] > MemberExpression.left[property.name='length'][object.type!='CallExpression']",
           message:
             "Use estimateSerializedTokens() from @agent-recorder/core instead of .length / 4. String.length is UTF-16 char count, not UTF-8 bytes.",
         },
