@@ -117,11 +117,11 @@ export function getTokenSummary(
   > = {};
 
   for (const row of upstreamCallRows) {
-    const key = row.upstream_key ?? "(default)";
+    const key = row.upstream_key ?? "(built-in)";
     byUpstream[key] = { callTokens: row.call_tokens, schemaTokens: 0 };
   }
   for (const row of upstreamSchemaRows) {
-    const key = row.upstream_key ?? "(default)";
+    const key = row.upstream_key ?? "(built-in)";
     if (!byUpstream[key]) byUpstream[key] = { callTokens: 0, schemaTokens: 0 };
     byUpstream[key]!.schemaTokens = row.schema_tokens;
   }

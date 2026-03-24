@@ -105,27 +105,35 @@ export function recordToolCall(options: RecordToolCallOptions): string | null {
     });
 
     // Budget check — fail-open, never throws.
-    // Only run the 3-query getTokenSummary when we haven't warned yet for this session,
-    // avoiding repeated DB overhead on every tool call after the threshold is crossed.
+    // Fast-path: single SUM query to check if budget is exceeded before running the
+    // full 3-query getTokenSummary (which is only needed when emitting the warning).
     if (contextBudgetTokens && !budgetWarnedSessions.has(sessionId)) {
       try {
-        const summary = getTokenSummary(db, sessionId, contextBudgetTokens);
-        if (summary.budgetExceeded) {
+        const { total } = db
+          .prepare(
+            `SELECT COALESCE(SUM(input_tokens), 0) + COALESCE(SUM(output_tokens), 0) AS total
+             FROM events WHERE session_id = ? AND event_type = 'tool_call'`
+          )
+          .get(sessionId) as { total: number };
+
+        if (total > contextBudgetTokens) {
+          // Budget exceeded — fetch full summary for the warning payload
+          const summary = getTokenSummary(db, sessionId, contextBudgetTokens);
           // Cap the set to avoid unbounded memory growth in very long-running daemons.
-          // We intentionally do NOT clear() on eviction to avoid re-flooding logs;
-          // instead we simply stop tracking new sessions once the cap is reached.
+          // Warn and track only if below the cap; sessions above the cap are
+          // silently skipped rather than re-warned on every call.
           if (budgetWarnedSessions.size < MAX_BUDGET_WARNED_SESSIONS) {
             budgetWarnedSessions.add(sessionId);
+            console.warn(
+              JSON.stringify({
+                type: "context_budget_warning",
+                sessionId,
+                estimatedTokens: summary.estimatedTotalTokens,
+                budgetTokens: contextBudgetTokens,
+                percentUsed: summary.percentUsed,
+              })
+            );
           }
-          console.warn(
-            JSON.stringify({
-              type: "context_budget_warning",
-              sessionId,
-              estimatedTokens: summary.estimatedTotalTokens,
-              budgetTokens: contextBudgetTokens,
-              percentUsed: summary.percentUsed,
-            })
-          );
         }
       } catch {
         // Fail-open
