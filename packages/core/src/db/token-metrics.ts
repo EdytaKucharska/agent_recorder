@@ -58,7 +58,9 @@ export function getTokenSummary(
   sessionId: string,
   budgetTokens: number
 ): TokenSummary {
-  // Per-upstream call tokens
+  // Per-upstream call tokens.
+  // Intentionally filtered to tool_call only: agent_call/subagent_call events
+  // don't carry meaningful token payloads in the current schema.
   const upstreamCallRows = db
     .prepare(
       `

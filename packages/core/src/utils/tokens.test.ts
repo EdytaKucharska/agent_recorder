@@ -18,9 +18,9 @@ describe("estimateTokens", () => {
     expect(estimateTokens(value)).toBe(Math.ceil(json.length / 4));
   });
 
-  it("handles null and undefined without throwing", () => {
-    expect(estimateTokens(null)).toBeGreaterThanOrEqual(0);
-    expect(estimateTokens(undefined)).toBeGreaterThanOrEqual(0);
+  it("returns 0 for null and undefined", () => {
+    expect(estimateTokens(null)).toBe(0);
+    expect(estimateTokens(undefined)).toBe(0);
   });
 
   it("does NOT double-serialize an already-serialized string", () => {

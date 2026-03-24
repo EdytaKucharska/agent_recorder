@@ -287,7 +287,7 @@ export async function sessionsViewCommand(
 
     // Print column header
     console.log(
-      `${"SEQ".padStart(6)} ${"TYPE".padEnd(12)} ${"NAME".padEnd(30)} ${"STATUS".padEnd(8)} ${"DURATION".padEnd(10)} ${"TOKENS~".padEnd(8)} ERROR`
+      `${"SEQ".padStart(6)} ${"TYPE".padEnd(12)} ${"NAME".padEnd(30)} ${"STATUS".padEnd(8)} ${"DURATION".padEnd(10)} ${"TOKENS".padEnd(8)} ERROR`
     );
     console.log("-".repeat(90));
 
@@ -410,7 +410,7 @@ export async function sessionsGrepCommand(
 
       // Print header
       console.log(
-        `${"SEQ".padStart(6)} ${"TYPE".padEnd(12)} ${"NAME".padEnd(30)} ${"STATUS".padEnd(8)} ${"DURATION".padEnd(10)} ${"TOKENS~".padEnd(8)} ERROR`
+        `${"SEQ".padStart(6)} ${"TYPE".padEnd(12)} ${"NAME".padEnd(30)} ${"STATUS".padEnd(8)} ${"DURATION".padEnd(10)} ${"TOKENS".padEnd(8)} ERROR`
       );
       console.log("-".repeat(90));
 

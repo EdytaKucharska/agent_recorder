@@ -44,6 +44,11 @@ const budgetWarnedSessions = new Set<string>();
 // (clearing would cause re-flooding for all previously warned sessions).
 const MAX_BUDGET_WARNED_SESSIONS = 10_000;
 
+/** Reset the warned-sessions set. Exposed for test isolation only. */
+export function resetBudgetWarnedSessions(): void {
+  budgetWarnedSessions.clear();
+}
+
 /**
  * Record a tool call event to the database.
  * Uses atomic sequence allocation from session_sequences table.

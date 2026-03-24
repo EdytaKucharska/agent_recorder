@@ -13,5 +13,6 @@
  * double-serialize it (JSON.stringify wraps strings in quotes), inflating the estimate.
  */
 export function estimateTokens(value: unknown): number {
-  return Math.ceil(JSON.stringify(value ?? "").length / 4);
+  if (value == null) return 0;
+  return Math.ceil(JSON.stringify(value).length / 4);
 }
