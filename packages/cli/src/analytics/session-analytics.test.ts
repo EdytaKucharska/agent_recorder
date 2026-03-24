@@ -32,6 +32,8 @@ function mockEvent(overrides: Partial<BaseEvent> = {}): BaseEvent {
     inputJson: "{}",
     outputJson: "{}",
     errorCategory: null,
+    inputTokens: null,
+    outputTokens: null,
     createdAt: "2024-01-01T00:00:00.000Z",
     ...overrides,
   };

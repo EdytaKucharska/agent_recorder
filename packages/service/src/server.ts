@@ -11,6 +11,7 @@ import { registerSessionsRoutes } from "./routes/sessions.js";
 import { registerEventsRoutes } from "./routes/events.js";
 import { registerHooksRoutes } from "./routes/hooks.js";
 import { registerStdioRoutes } from "./routes/stdio.js";
+import { registerTokensRoutes } from "./routes/tokens.js";
 import type { DaemonContext } from "./daemon-context.js";
 
 export interface CreateServerOptions {
@@ -19,6 +20,7 @@ export interface CreateServerOptions {
   debug?: boolean;
   daemonContext?: DaemonContext;
   redactKeys?: string[];
+  contextBudgetTokens?: number;
 }
 
 /**
@@ -27,7 +29,7 @@ export interface CreateServerOptions {
 export async function createServer(
   options: CreateServerOptions
 ): Promise<FastifyInstance> {
-  const { db, currentSessionId, debug, daemonContext, redactKeys } = options;
+  const { db, currentSessionId, debug, daemonContext, redactKeys, contextBudgetTokens } = options;
 
   const app = Fastify({
     logger: true,
@@ -69,6 +71,10 @@ export async function createServer(
     redactKeys: redactKeys ?? [],
   });
   await registerStdioRoutes(app, { db, debug: debug ?? false });
+  await registerTokensRoutes(app, {
+    db,
+    contextBudgetTokens: contextBudgetTokens ?? 150000,
+  });
 
   return app;
 }

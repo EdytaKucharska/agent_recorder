@@ -34,6 +34,8 @@ export interface InsertEventInput {
   inputJson?: string | null;
   outputJson?: string | null;
   errorCategory?: ErrorCategory | null;
+  inputTokens?: number | null;
+  outputTokens?: number | null;
 }
 
 /** Query options for paginated event retrieval */
@@ -99,7 +101,8 @@ export interface StorageAdapter {
     status: EventStatus,
     endedAt: string,
     outputJson?: string | null,
-    errorCategory?: ErrorCategory | null
+    errorCategory?: ErrorCategory | null,
+    outputTokens?: number | null
   ): BaseEvent | null;
   findRunningEvent(
     sessionId: string,

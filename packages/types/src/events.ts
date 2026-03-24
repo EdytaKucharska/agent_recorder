@@ -88,6 +88,12 @@ export interface BaseEvent {
   /** Error category for failed events (null if success/running) */
   errorCategory: ErrorCategory | null;
 
+  /** Estimated input token count for this event (null if not measured) */
+  inputTokens: number | null;
+
+  /** Estimated output token count for this event (null if not measured) */
+  outputTokens: number | null;
+
   /** When this record was created (ISO 8601) */
   createdAt: string;
 }

@@ -229,9 +229,13 @@ function printEventDetailed(event: BaseEvent): void {
   const durationStr = duration !== null ? `${duration}ms` : "...";
   const name = event.toolName ?? event.skillName ?? "-";
   const errorInfo = event.errorCategory ? ` [${event.errorCategory}]` : "";
+  const totalTokens =
+    event.inputTokens != null || event.outputTokens != null
+      ? `~${(event.inputTokens ?? 0) + (event.outputTokens ?? 0)}`
+      : "-";
 
   console.log(
-    `[${String(event.sequence).padStart(4)}] ${event.eventType.padEnd(12)} ${name.padEnd(30)} ${event.status.padEnd(8)} ${durationStr.padEnd(10)}${errorInfo}`
+    `[${String(event.sequence).padStart(4)}] ${event.eventType.padEnd(12)} ${name.padEnd(30)} ${event.status.padEnd(8)} ${durationStr.padEnd(10)} ${totalTokens.padEnd(8)}${errorInfo}`
   );
 }
 
@@ -283,9 +287,9 @@ export async function sessionsViewCommand(
 
     // Print column header
     console.log(
-      `${"SEQ".padStart(6)} ${"TYPE".padEnd(12)} ${"NAME".padEnd(30)} ${"STATUS".padEnd(8)} ${"DURATION".padEnd(10)} ERROR`
+      `${"SEQ".padStart(6)} ${"TYPE".padEnd(12)} ${"NAME".padEnd(30)} ${"STATUS".padEnd(8)} ${"DURATION".padEnd(10)} ${"TOKENS~".padEnd(8)} ERROR`
     );
-    console.log("-".repeat(80));
+    console.log("-".repeat(90));
 
     // Show tail events
     const startIndex = Math.max(0, events.length - tailCount);
@@ -406,9 +410,9 @@ export async function sessionsGrepCommand(
 
       // Print header
       console.log(
-        `${"SEQ".padStart(6)} ${"TYPE".padEnd(12)} ${"NAME".padEnd(30)} ${"STATUS".padEnd(8)} ${"DURATION".padEnd(10)} ERROR`
+        `${"SEQ".padStart(6)} ${"TYPE".padEnd(12)} ${"NAME".padEnd(30)} ${"STATUS".padEnd(8)} ${"DURATION".padEnd(10)} ${"TOKENS~".padEnd(8)} ERROR`
       );
-      console.log("-".repeat(80));
+      console.log("-".repeat(90));
 
       for (const event of filtered) {
         printEventDetailed(event);

@@ -25,6 +25,7 @@ import {
   redactAndTruncate,
   redactJson,
   deriveErrorCategory,
+  estimateTokens,
   type InsertEventInput,
   type EventStatus,
   type SessionStatus,
@@ -434,6 +435,10 @@ export async function registerHooksRoutes(
 
             const parentId = getCurrentParentId(ctx);
 
+            const inputJson = payload.tool_input
+              ? redactAndTruncate(payload.tool_input, redactKeys)
+              : null;
+
             const eventInput: InsertEventInput = {
               id: eventId,
               sessionId: session.id,
@@ -451,9 +456,8 @@ export async function registerHooksRoutes(
               // the hook payload includes a correlation identifier.
               startedAt: now,
               status: "running",
-              inputJson: payload.tool_input
-                ? redactAndTruncate(payload.tool_input, redactKeys)
-                : null,
+              inputJson,
+              inputTokens: inputJson != null ? estimateTokens(inputJson) : null,
             };
 
             insertEvent(db, eventInput);
@@ -509,6 +513,9 @@ export async function registerHooksRoutes(
             // See packages/core/src/db/events.ts for the caveat documentation.
             const runningEvent = findRunningEvent(db, session.id, cleanName);
 
+            const outputTokens =
+              outputJsonStr != null ? estimateTokens(outputJsonStr) : null;
+
             if (runningEvent) {
               // Complete the existing running event
               const completed = completeEvent(
@@ -517,7 +524,8 @@ export async function registerHooksRoutes(
                 eventStatus,
                 now,
                 outputJsonStr,
-                errorCategory
+                errorCategory,
+                outputTokens
               );
 
               if (!completed && debug) {
@@ -553,6 +561,10 @@ export async function registerHooksRoutes(
                 mcpMethod = String(payload.tool_input.method);
               }
 
+              const standaloneInputJson = payload.tool_input
+                ? redactAndTruncate(payload.tool_input, redactKeys)
+                : null;
+
               const eventInput: InsertEventInput = {
                 id: randomUUID(),
                 sessionId: session.id,
@@ -567,11 +579,14 @@ export async function registerHooksRoutes(
                 startedAt: now,
                 endedAt: now,
                 status: eventStatus,
-                inputJson: payload.tool_input
-                  ? redactAndTruncate(payload.tool_input, redactKeys)
-                  : null,
+                inputJson: standaloneInputJson,
                 outputJson: outputJsonStr,
                 errorCategory,
+                inputTokens:
+                  standaloneInputJson != null
+                    ? estimateTokens(standaloneInputJson)
+                    : null,
+                outputTokens,
               };
 
               insertEvent(db, eventInput);

@@ -139,6 +139,12 @@ export function EventInspectPanel({
         {event.errorCategory && (
           <Row label="Error" value={event.errorCategory} color="red" />
         )}
+
+        <Row
+          label="Tokens"
+          value={`~${(event.inputTokens ?? 0) + (event.outputTokens ?? 0)} (in: ${event.inputTokens ?? 0}, out: ${event.outputTokens ?? 0})`}
+          color="cyan"
+        />
       </Box>
 
       {viewMode === "input" && (

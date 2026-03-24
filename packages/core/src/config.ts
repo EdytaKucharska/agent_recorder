@@ -43,6 +43,9 @@ export interface Config {
 
   /** Enable debug logging for MCP proxy (tools/call only) */
   debugProxy: boolean;
+
+  /** Context budget in tokens; warn when session exceeds this (default: 150000) */
+  contextBudgetTokens: number;
 }
 
 const DEFAULT_REDACT_KEYS = [
@@ -76,6 +79,10 @@ export function loadConfig(): Config {
   const upstreamsPath =
     process.env["AR_UPSTREAMS_PATH"] ?? getDefaultUpstreamsPath();
   const debugProxy = process.env["AR_DEBUG_PROXY"] === "1";
+  const contextBudgetTokens = parseInt(
+    process.env["AR_CONTEXT_BUDGET_TOKENS"] ?? "150000",
+    10
+  );
 
   return {
     listenPort,
@@ -85,6 +92,7 @@ export function loadConfig(): Config {
     downstreamMcpUrl,
     upstreamsPath,
     debugProxy,
+    contextBudgetTokens,
   };
 }
 

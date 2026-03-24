@@ -11,6 +11,8 @@ import {
   deriveErrorCategory,
   insertEvent,
   redactAndTruncate,
+  estimateTokens,
+  getTokenSummary,
   type EventStatus,
 } from "@agent-recorder/core";
 
@@ -29,7 +31,15 @@ export interface RecordToolCallOptions {
   redactKeys: string[];
   /** Enable debug logging (metadata only, no payloads) */
   debugProxy?: boolean;
+  /** Context budget in tokens; warn when session exceeds this */
+  contextBudgetTokens?: number;
 }
+
+/**
+ * Track sessions where a budget warning has already been emitted.
+ * Prevents log spam on every tool call after the threshold is crossed.
+ */
+const budgetWarnedSessions = new Set<string>();
 
 /**
  * Record a tool call event to the database.
@@ -53,27 +63,22 @@ export function recordToolCall(options: RecordToolCallOptions): string | null {
     endedAt,
     redactKeys,
     debugProxy,
+    contextBudgetTokens,
   } = options;
 
   try {
-    // Allocate sequence atomically
     const sequence = allocateSequence(db, sessionId);
 
-    // Redact and truncate input/output
     const inputJson = redactAndTruncate(input, redactKeys);
     const outputJson = redactAndTruncate(output, redactKeys);
-
-    // Derive error category from status and redacted output (no content logging)
     const errorCategory = deriveErrorCategory(status, outputJson);
 
-    // Generate event ID
+    // Estimate tokens from already-redacted payloads
+    const inputTokens = estimateTokens(inputJson);
+    const outputTokens = estimateTokens(outputJson);
+
     const eventId = randomUUID();
 
-    // Insert event with proper column mapping:
-    // - agentName = "claude-code" (stable identifier for the agent)
-    // - toolName = actual tool name from params.name
-    // - mcpMethod = "tools/call" (or whatever MCP method was invoked)
-    // - upstreamKey = server key from router mode (null for legacy single-upstream)
     insertEvent(db, {
       id: eventId,
       sessionId,
@@ -92,21 +97,39 @@ export function recordToolCall(options: RecordToolCallOptions): string | null {
       inputJson,
       outputJson,
       errorCategory,
+      inputTokens,
+      outputTokens,
     });
 
-    // Debug logging: metadata only, no payloads
+    // Budget check — fail-open, never throws
+    if (contextBudgetTokens) {
+      try {
+        const summary = getTokenSummary(db, sessionId, contextBudgetTokens);
+        if (summary.budgetExceeded && !budgetWarnedSessions.has(sessionId)) {
+          budgetWarnedSessions.add(sessionId);
+          console.warn(JSON.stringify({
+            type: "context_budget_warning",
+            sessionId,
+            estimatedTokens: summary.estimatedTotalTokens,
+            budgetTokens: contextBudgetTokens,
+            percentUsed: summary.percentUsed,
+          }));
+        }
+      } catch {
+        // Fail-open
+      }
+    }
+
     if (debugProxy) {
-      const durationMs =
-        new Date(endedAt).getTime() - new Date(startedAt).getTime();
+      const durationMs = new Date(endedAt).getTime() - new Date(startedAt).getTime();
       const upstreamInfo = upstreamKey ? ` upstream=${upstreamKey}` : "";
       console.log(
-        `[DEBUG] tool_call: session=${sessionId} seq=${sequence} tool=${toolName}${upstreamInfo} status=${status} duration=${durationMs}ms`
+        `[DEBUG] tool_call: session=${sessionId} seq=${sequence} tool=${toolName}${upstreamInfo} status=${status} duration=${durationMs}ms tokens=${inputTokens}+${outputTokens}`
       );
     }
 
     return eventId;
   } catch (error) {
-    // Fail-open: log error but don't throw
     console.error("Failed to record tool call:", error);
     return null;
   }

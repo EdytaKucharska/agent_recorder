@@ -106,6 +106,7 @@ export async function startDaemon(
     currentSessionId: sessionManager.sessionId,
     daemonContext,
     redactKeys: config.redactKeys,
+    contextBudgetTokens: config.contextBudgetTokens,
   });
   const actualListenPort = await startServer(app, config.listenPort);
 
