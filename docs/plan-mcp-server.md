@@ -13,6 +13,34 @@ Agent Recorder captures a rich, structured timeline of agent execution (tool cal
 
 ---
 
+## Codebase Reality Check (gaps between PRD and current code)
+
+These were discovered during exploration and must be addressed before/during implementation:
+
+### Gap 1: Existing MCP server must be replaced, not extended
+`packages/cli/src/commands/mcp-server.ts` already exists — a 521-line hand-rolled HTTP JSON-RPC server with 6 read-only tools (`check_health`, `list_sessions`, `get_session_summary`, `get_errors`, `get_tool_call_stats`, `get_latest_session_summary`). It proxies to the daemon's REST API and binds to `0.0.0.0` (violates localhost-only). **This file will be entirely replaced** by the new implementation. The new tools supersede all 6 existing ones.
+
+`@modelcontextprotocol/sdk` is **not currently installed** anywhere in the project. It must be added as a new dependency.
+
+### Gap 2: Missing `source` column — requires DB migration
+The events table has no `source` column. The PRD's write path (`ar_record_event`, `ar_record_batch`) requires this to distinguish proxy-captured vs externally-ingested events. **A new migration is required:**
+```sql
+-- packages/core/migrations/008_add_source_column.sql
+ALTER TABLE events ADD COLUMN source TEXT NOT NULL DEFAULT 'proxy';
+```
+All existing proxy-captured rows will default to `'proxy'`.
+
+### Gap 3: No tree-building logic exists
+`getEventsBySession()` returns a flat `BaseEvent[]` ordered by sequence. The `parent_event_id` column exists but no code builds or traverses the tree. `buildEventTree()` and `computeRollup()` are entirely new and must be written in `packages/mcp-server/src/rollup/token-rollup.ts`.
+
+### Gap 4: `ar_list_sessions` needs new aggregation SQL
+`listSessions()` and `listSessionsWithActivity()` return bare session records with no event counts, token totals, or error counts. A new `listSessionsSummary()` function using a `LEFT JOIN` + `GROUP BY` is required in `packages/core/src/db/sessions.ts`.
+
+### Gap 5: No `queryTokenUsageAggregated()` exists
+`getTokenSummary()` works for a single session. The PRD's `ar_query_token_usage` needs cross-session aggregation with GROUP BY dimensions. New function `queryTokenUsageAggregated()` required in `packages/core/src/db/token-metrics.ts`.
+
+---
+
 ## Architecture Overview
 
 ```
@@ -65,10 +93,12 @@ packages/mcp-server/
 | Tool | Purpose | Key Parameters |
 |------|---------|----------------|
 | `ar_list_sessions` | List recorded sessions with summary metrics | `limit` (max 100), `offset`, `status`, `since`, `upstream_key` |
-| `ar_get_session` | Full event tree with recursive token roll-up | `session_id` (req), `depth` (1–10, default 3), `event_types`, `include_io` |
+| `ar_get_session` | Full event tree with recursive token roll-up | `session_id` (req), `depth` (1–10, **default 10**), `event_types`, `include_io` |
 | `ar_query_token_usage` | Aggregated token usage with grouping | `group_by` (session/upstream/tool/day), time range, filters |
 | `ar_get_token_budget` | Current token budget status for active session | `session_id` (req) |
 | `ar_list_upstreams` | All known upstream MCP servers with activity metrics | `since` (optional) |
+
+> **Depth decision (Issue 2):** PRD specifies "unlimited" by default. We cap at 10 for performance but default to 10 rather than 3 — a depth of 3 would silently cut off real agent chains (agent_call → subagent_call → skill_call → tool_call is already 4 levels). Clients wanting a shallow view pass `depth: 2` explicitly.
 
 ### Phase 2 – Write Tools
 
@@ -96,6 +126,30 @@ All cost fields labeled `estimated_*`. Loaded once at server startup, not per-re
 
 ## Implementation Steps (Sequential)
 
+### Step 0 — DB Migrations (prerequisite for write tools)
+
+**Two migrations required:**
+
+**`packages/core/migrations/008_add_source_column.sql`**
+```sql
+ALTER TABLE events ADD COLUMN source TEXT NOT NULL DEFAULT 'proxy';
+```
+All existing proxy-captured rows default to `'proxy'`. Externally-ingested events carry the caller-supplied value (e.g. `'n8n'`, `'langgraph'`).
+
+**`packages/core/migrations/009_add_model_column.sql`**
+```sql
+ALTER TABLE events ADD COLUMN model TEXT;
+```
+Optional field for cost estimation. NULL = use default pricing rate. Populated only for externally-ingested events where the caller knows the model.
+
+Also update these files to include both new columns:
+- `InsertEventInput` in `packages/types/src/storage.ts` — add `source?: string` (defaults to `'proxy'`), `model?: string | null`
+- `BaseEvent` in `packages/types/src/events.ts` — add `source: string`, `model: string | null`
+- `rowToEvent()` in `packages/core/src/db/events.ts` — map `row.source` → `source`, `row.model` → `model`
+- `insertEvent()` SQL in `packages/core/src/db/events.ts` — include both columns in INSERT
+
+---
+
 ### Step 1 — Package Scaffolding
 
 **Files to create:**
@@ -113,7 +167,7 @@ All cost fields labeled `estimated_*`. Loaded once at server startup, not per-re
   }
 }
 ```
-`better-sqlite3` as devDependency only (DB injected, never opened by this package).
+`@modelcontextprotocol/sdk` is a **new dependency not currently installed** in the project. `better-sqlite3` as devDependency only (DB injected, never opened by this package).
 
 ---
 
@@ -122,15 +176,24 @@ All cost fields labeled `estimated_*`. Loaded once at server startup, not per-re
 #### `src/validation/schemas.ts`
 All Zod schemas with `z.infer<>` types exported alongside:
 - `ListSessionsInputSchema` — limit max 100, offset, optional status/since/upstream_key
-- `GetSessionInputSchema` — session_id required, depth 1–10 default 3, optional event_types array, include_io boolean
+- `GetSessionInputSchema` — session_id required, depth 1–10 **default 10**, optional event_types array, include_io boolean
 - `QueryTokenUsageInputSchema` — group_by enum, time range, filters, limit max 500
 - `GetTokenBudgetInputSchema` — session_id required
 - `ListUpstreamsInputSchema` — since optional ISO string
-- `RecordEventInputSchema` — event_type/session_id/source/started_at required; all other BaseEvent fields optional
+- `RecordEventInputSchema` — event_type/session_id/source/started_at required; **`model` (optional string, top-level)** for cost estimation; all other optional BaseEvent fields; see Issue 1 note below
 - `CompleteEventInputSchema` — event_id/session_id/ended_at/status required
 - `RecordBatchInputSchema` — session_id/source required, events array max 100
 
 Each schema's `.shape` passed directly as MCP tool `inputSchema`.
+
+> **`model` field decision (Issue 1):** The PRD's open question asks whether `ar_record_event` should accept `model` at the top level (not just buried in `metadata`). **Yes, add it now.** `model` is used by `estimateCost()` to pick the right pricing tier for externally-ingested events. Adding it later would be a breaking change for clients already omitting it. It is stored as a column on `events` — **this requires a second migration:**
+> ```sql
+> -- packages/core/migrations/009_add_model_column.sql
+> ALTER TABLE events ADD COLUMN model TEXT;
+> ```
+> `model` is optional (null = use default pricing rate). Add to `InsertEventInput`, `BaseEvent`, `rowToEvent()`, and `insertEvent()` SQL alongside the `source` changes in Step 0.
+
+> **`@agent-recorder/types` confirmation (Issue 4):** `packages/types` is a real package in this monorepo (confirmed by exploration). It has zero dependencies and exports `EventType`, `EventStatus`, `ErrorCategory`, `BaseEvent`, `InsertEventInput`, `StorageAdapter`, etc. The import `@agent-recorder/types` is valid and maps to `packages/types/src/index.ts` via the workspace.
 
 #### `src/validation/redaction.ts`
 ```typescript
@@ -171,10 +234,10 @@ Pricing config loaded once at startup from `AR_PRICING_PATH`. Falls back to `def
 ```typescript
 export class RateLimiter {
   constructor(limits: { read: number; write: number; batch: number })
-  check(clientId: string, tier: "read" | "write" | "batch"): boolean
+  check(sessionId: string, tier: "read" | "write" | "batch"): boolean
 }
 ```
-Token-bucket, 1-second window, counters per `(clientId, tier)`. `clientId` from `Mcp-Session-Id` header or `"stdio"` constant. Max 1000 client slots before eviction.
+Token-bucket, 1-second window, counters per `(sessionId, tier)`. **`sessionId` comes from the tool parameters** (the `session_id` field in write tool inputs, or `session_id` param in read tools) — not from the MCP transport's `Mcp-Session-Id` header. This correctly scopes rate limits to AR sessions, not MCP transport sessions. An MCP client can reconnect (new transport session) without resetting their AR session rate window. For read tools without a `session_id` param (e.g. `ar_list_sessions`, `ar_list_upstreams`), key on `"global"` as the sessionId. Max 1000 slots before eviction.
 
 Rate limits per PRD:
 - `read`: 50 calls/second
@@ -184,6 +247,8 @@ Rate limits per PRD:
 ---
 
 ### Step 3 — New Core DB Functions
+
+> Note: `getEventsBySession()`, `completeEvent()`, `insertEvent()`, `allocateSequence()` all exist and are reused as-is (after Step 0 adds `source` to `insertEvent`).
 
 Add to `packages/core/src/db/` (reuse existing query patterns):
 
@@ -270,12 +335,13 @@ export function register(server: McpServer, db: Database.Database, opts: McpServ
 
 **`record-event.ts`** (`ar_record_event`):
 1. Validate with `RecordEventInputSchema`
-2. `stripSensitiveKeys` on `input_json`/`output_json`/`metadata`
-3. `redactAndTruncate` with `opts.redactKeys`
-4. `allocateSequence(db, sessionId)` for sequence number
-5. Generate `event_id` with `randomUUID()` if not provided
-6. Call `insertEvent(db, ...)` — reuse from `@agent-recorder/core/src/db/events.ts`
-7. Return `{ event_id, session_id, stored: true, deduplicated: false }`
+2. **Session auto-creation (Issue 3):** Call `getSessionById(db, sessionId)`. If null, call `createSession(db, sessionId, event.started_at)` — use the event's `started_at` as the session's start time, status defaults to `'active'`. The session has no name/description beyond its ID. This matches how `hooks.ts` handles `SessionStart` events. Do NOT error if session doesn't exist — silently create it.
+3. `stripSensitiveKeys` on `input_json`/`output_json`/`metadata`
+4. `redactAndTruncate` with `opts.redactKeys`
+5. `allocateSequence(db, sessionId)` for sequence number — reuses `allocateSequence()` from `@agent-recorder/core/src/db/sequences.ts`
+6. Generate `event_id` with `randomUUID()` if not provided
+7. Call `insertEvent(db, { ...fields, source, model })` — `source` comes from the tool input (required field); `model` is optional for cost estimation
+8. Return `{ event_id, session_id, stored: true, deduplicated: false }`
 
 Idempotent: if `event_id` already exists in same session, return `{ deduplicated: true }` without error.
 
@@ -369,14 +435,16 @@ export async function mcpServerStdioCommand(): Promise<void>
 
 | Decision | Choice | Reason |
 |----------|--------|--------|
-| Server mounting | Fastify plugin on existing daemon | Shares SQLite instance, no extra process |
-| MCP SDK | `@modelcontextprotocol/sdk` throughout | Protocol-correct SSE, session management, capability exchange |
+| Existing MCP server | **Replace entirely** (`packages/cli/src/commands/mcp-server.ts`) | Hand-rolled, proxies REST (extra hop), binds `0.0.0.0`, superseded by 8 new tools |
+| MCP SDK | Add `@modelcontextprotocol/sdk` (new dep) | Not currently installed; hand-rolling Streamable HTTP + SSE session lifecycle is error-prone |
+| Server mounting | Fastify plugin on existing daemon at `/mcp` | Shares SQLite instance directly, no REST proxy hop |
+| `source` column | New migration `008_add_source_column.sql`, default `'proxy'` | Distinguishes proxy-captured vs externally-ingested; backfills existing rows transparently |
 | Input validation | Zod schema-first | Single source of truth for runtime validation + TypeScript types |
-| Prompt stripping | Strip before redact, write path only | Remove entirely rather than replace with `[REDACTED]` |
-| Token roll-up | Computed at query time in JS | No materialized columns, no schema changes |
-| Rate limiting | In-memory token-bucket | Sufficient for localhost-only, no external dependency |
-| STDIO transport | Read-only (no write tools) | Prevents WAL conflicts with running daemon |
-| Pricing | Static JSON, user-editable | No live API calls, clear "estimated_" labeling |
+| Prompt stripping | Strip before redact, write path only | Remove key entirely (not `[REDACTED]`) — lost data is better than leaked data |
+| Token roll-up | Computed at query time in JS over flat `BaseEvent[]` | No materialized columns; `getEventsBySession()` returns flat array, `buildEventTree()` is new logic |
+| Rate limiting | In-memory token-bucket, keyed on **AR `session_id`** (not MCP transport session) | Prevents bypass on reconnect; PRD says "per session" = AR session |
+| STDIO transport | Read-only (no write tools registered) | Prevents WAL conflicts when daemon is also running |
+| Pricing | Static JSON, user-editable | No live API calls, all costs labeled `estimated_` |
 
 ---
 
@@ -419,13 +487,18 @@ export async function mcpServerStdioCommand(): Promise<void>
 
 | File | Change |
 |------|--------|
+| `packages/core/migrations/008_add_source_column.sql` | **New** — `ALTER TABLE events ADD COLUMN source TEXT NOT NULL DEFAULT 'proxy'` |
+| `packages/core/migrations/009_add_model_column.sql` | **New** — `ALTER TABLE events ADD COLUMN model TEXT` |
+| `packages/types/src/storage.ts` | Add `source?: string`, `model?: string \| null` to `InsertEventInput` |
+| `packages/types/src/events.ts` | Add `source: string`, `model: string \| null` to `BaseEvent` |
+| `packages/core/src/db/events.ts` | Add `source` + `model` to `rowToEvent()` + `insertEvent()` SQL |
 | `packages/core/src/db/sessions.ts` | Add `listSessionsSummary()` |
 | `packages/core/src/db/token-metrics.ts` | Add `queryTokenUsageAggregated()` |
 | `packages/core/src/db/upstreams.ts` | New file — `listUpstreamActivity()` |
-| `packages/core/src/db/index.ts` | Export new functions |
+| `packages/core/src/db/index.ts` | Export new functions + `source`-aware types |
 | `packages/service/package.json` | Add `@agent-recorder/mcp-server` dependency |
 | `packages/service/src/server.ts` | Register `createFastifyPlugin` |
-| `packages/cli/src/commands/mcp-server.ts` | Replace with subcommand structure |
+| `packages/cli/src/commands/mcp-server.ts` | **Entirely replace** existing 521-line hand-rolled server with new subcommand structure |
 | `packages/cli/src/index.ts` | Update `mcp-server` CLI wiring |
 
 ---
@@ -496,5 +569,5 @@ agent-recorder mcp-server --stdio
 | `verbatimModuleSyntax` type imports | Use `import type` for all type-only imports from `@agent-recorder/types` |
 | `noUncheckedIndexedAccess` in tree traversal | Explicit null guards + `!` assertions consistent with existing `hooks.ts` pattern |
 | STDIO + daemon WAL conflicts | STDIO entry opens DB read-only, no write tools registered |
-| Token roll-up performance at scale | Default depth 3, max depth 10 enforced by Zod; consider materialized columns if >500 events proves slow |
+| Token roll-up performance at scale | Default depth 10, max depth 10 enforced by Zod; consider materialized columns if >500 events proves slow |
 | Pricing data staleness | All costs labeled `estimated_`, ship updated `pricing.json` with releases |
