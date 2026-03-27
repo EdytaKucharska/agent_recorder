@@ -36,7 +36,11 @@ import { diagnoseMcpCommand } from "./commands/diagnose.js";
 import { mockMcpCommand } from "./commands/mock-mcp.js";
 import { tuiCommand } from "./commands/tui.js";
 import { discoverCommand } from "./commands/discover.js";
-import { mcpServerCommand } from "./commands/mcp-server.js";
+import {
+  mcpServerStartCommand,
+  mcpServerStatusCommand,
+  mcpServerStdioCommand,
+} from "./commands/mcp-server.js";
 import { addCommand, removeCommand, listCommand } from "./commands/add.js";
 import {
   upstreamAddCommand,
@@ -379,16 +383,36 @@ program
     await mockMcpCommand(options);
   });
 
-// MCP observability server
-program
+// MCP server commands
+const mcpServer = program
   .command("mcp-server")
   .description(
-    "Start an MCP server exposing Agent Recorder observability tools"
+    "Manage the Agent Recorder MCP server (mounted on the daemon at /mcp)"
   )
-  .option("-p, --port <port>", "Port to listen on", "8789")
-  .option("-H, --host <host>", "Host to bind to", "0.0.0.0")
-  .action(async (options) => {
-    await mcpServerCommand(options);
+  .option(
+    "--stdio",
+    "Run MCP server in STDIO mode (for direct Claude Code integration)"
+  )
+  .action(async (options: { stdio?: boolean }) => {
+    if (options.stdio) {
+      await mcpServerStdioCommand();
+    } else {
+      await mcpServerStartCommand();
+    }
+  });
+
+mcpServer
+  .command("start")
+  .description("Show the MCP server URL (daemon must be running)")
+  .action(async () => {
+    await mcpServerStartCommand();
+  });
+
+mcpServer
+  .command("status")
+  .description("Check if the MCP server is responding")
+  .action(async () => {
+    await mcpServerStatusCommand();
   });
 
 program.parse();

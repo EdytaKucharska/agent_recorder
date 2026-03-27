@@ -36,6 +36,10 @@ export interface InsertEventInput {
   errorCategory?: ErrorCategory | null;
   inputTokens?: number | null;
   outputTokens?: number | null;
+  /** Origin of this event. Defaults to 'proxy' via DB DEFAULT. */
+  source?: string;
+  /** Model identifier for cost estimation (null = use default pricing rate) */
+  model?: string | null;
 }
 
 /** Query options for paginated event retrieval */

@@ -13,6 +13,7 @@ import { registerHooksRoutes } from "./routes/hooks.js";
 import { registerStdioRoutes } from "./routes/stdio.js";
 import { registerTokensRoutes } from "./routes/tokens.js";
 import { DEFAULT_CONTEXT_BUDGET_TOKENS } from "@agent-recorder/core";
+import { createFastifyPlugin } from "@agent-recorder/mcp-server";
 import type { DaemonContext } from "./daemon-context.js";
 
 export interface CreateServerOptions {
@@ -83,6 +84,15 @@ export async function createServer(
     db,
     contextBudgetTokens: contextBudgetTokens ?? DEFAULT_CONTEXT_BUDGET_TOKENS,
   });
+
+  // MCP server at /mcp (Streamable HTTP transport)
+  await app.register(
+    createFastifyPlugin({
+      db,
+      redactKeys: redactKeys ?? [],
+      contextBudgetTokens: contextBudgetTokens ?? DEFAULT_CONTEXT_BUDGET_TOKENS,
+    })
+  );
 
   return app;
 }

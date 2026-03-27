@@ -11,7 +11,9 @@ export {
   getSessionById,
   listSessions,
   listSessionsWithActivity,
+  listSessionsSummary,
   type SessionWithActivity,
+  type SessionSummaryRow,
 } from "./sessions.js";
 export {
   insertEvent,
@@ -32,6 +34,9 @@ export { allocateSequence, getCurrentSequence } from "./sequences.js";
 export {
   upsertToolSchemaMetric,
   getTokenSummary,
+  queryTokenUsageAggregated,
   type UpsertToolSchemaMetricInput,
   type TokenSummary,
+  type AggregatedTokenRow,
 } from "./token-metrics.js";
+export { listUpstreamActivity, type UpstreamActivityRow } from "./upstreams.js";

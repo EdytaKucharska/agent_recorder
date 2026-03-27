@@ -1,7 +1,7 @@
 {
-  "name": "@agent-recorder/service",
+  "name": "@agent-recorder/mcp-server",
   "version": "2.0.14",
-  "description": "Local daemon for Agent Recorder (MCP proxy + REST API)",
+  "description": "MCP server for Agent Recorder — exposes observability data and event ingestion",
   "type": "module",
   "exports": {
     ".": {
@@ -18,13 +18,14 @@
   },
   "dependencies": {
     "@agent-recorder/core": "workspace:*",
-    "@agent-recorder/mcp-server": "workspace:*",
     "@agent-recorder/types": "workspace:*",
-    "better-sqlite3": "^11.7.0",
-    "fastify": "^5.0.0"
+    "@modelcontextprotocol/sdk": "^1.28.0",
+    "zod": "^3.23.8"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.12",
-    "@types/node": "^22.0.0"
+    "@types/node": "^22.0.0",
+    "better-sqlite3": "^11.7.0",
+    "fastify": "^5.0.0"
   }
 }

@@ -41,6 +41,8 @@ interface EventRow {
   error_category: string | null;
   input_tokens: number | null;
   output_tokens: number | null;
+  source: string;
+  model: string | null;
   created_at: string;
 }
 
@@ -67,6 +69,8 @@ function rowToEvent(row: EventRow): BaseEvent {
     errorCategory: row.error_category as ErrorCategory | null,
     inputTokens: row.input_tokens,
     outputTokens: row.output_tokens,
+    source: row.source,
+    model: row.model,
     createdAt: row.created_at,
   };
 }
@@ -82,8 +86,8 @@ export function insertEvent(
       agent_role, agent_name, skill_name, tool_name, mcp_method, upstream_key,
       correlation_id,
       started_at, ended_at, status, input_json, output_json, error_category,
-      input_tokens, output_tokens, created_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+      input_tokens, output_tokens, source, model, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
   `);
 
   stmt.run(
@@ -106,7 +110,9 @@ export function insertEvent(
     event.outputJson ?? null,
     event.errorCategory ?? null,
     event.inputTokens ?? null,
-    event.outputTokens ?? null
+    event.outputTokens ?? null,
+    event.source ?? "proxy",
+    event.model ?? null
   );
 
   return getEventById(db, event.id)!;

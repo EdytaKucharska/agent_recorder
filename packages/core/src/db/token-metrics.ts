@@ -52,6 +52,110 @@ export interface TokenSummary {
   }>;
 }
 
+/** A row from cross-session aggregated token queries */
+export interface AggregatedTokenRow {
+  groupKey: string;
+  callCount: number;
+  totalInputTokens: number;
+  totalOutputTokens: number;
+  errorCount: number;
+  avgDurationMs: number;
+}
+
+/** Query aggregated token usage across sessions, grouped by a dimension */
+export function queryTokenUsageAggregated(
+  db: Database.Database,
+  opts: {
+    groupBy: "session" | "upstream" | "tool" | "day";
+    since?: string;
+    until?: string;
+    sessionId?: string;
+    upstreamKey?: string;
+    limit: number;
+  }
+): AggregatedTokenRow[] {
+  const conditions: string[] = [];
+  const params: unknown[] = [];
+
+  if (opts.since) {
+    conditions.push("started_at >= ?");
+    params.push(opts.since);
+  }
+  if (opts.until) {
+    conditions.push("started_at <= ?");
+    params.push(opts.until);
+  }
+  if (opts.sessionId) {
+    conditions.push("session_id = ?");
+    params.push(opts.sessionId);
+  }
+  if (opts.upstreamKey) {
+    conditions.push("upstream_key = ?");
+    params.push(opts.upstreamKey);
+  }
+
+  const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+
+  let groupExpr: string;
+  switch (opts.groupBy) {
+    case "session":
+      groupExpr = "session_id";
+      break;
+    case "upstream":
+      groupExpr = "COALESCE(upstream_key, '(built-in)')";
+      break;
+    case "tool":
+      groupExpr = "COALESCE(tool_name, '(none)')";
+      break;
+    case "day":
+      groupExpr = "DATE(started_at)";
+      break;
+  }
+
+  params.push(opts.limit);
+
+  const sql = `
+    SELECT
+      ${groupExpr} AS group_key,
+      COUNT(*) AS call_count,
+      COALESCE(SUM(input_tokens), 0) AS total_input_tokens,
+      COALESCE(SUM(output_tokens), 0) AS total_output_tokens,
+      SUM(CASE WHEN status = 'error' THEN 1 ELSE 0 END) AS error_count,
+      COALESCE(
+        AVG(
+          CASE
+            WHEN ended_at IS NOT NULL
+            THEN (julianday(ended_at) - julianday(started_at)) * 86400000
+            ELSE NULL
+          END
+        ), 0
+      ) AS avg_duration_ms
+    FROM events
+    ${where}
+    GROUP BY ${groupExpr}
+    ORDER BY total_input_tokens + total_output_tokens DESC
+    LIMIT ?
+  `;
+
+  const rows = db.prepare(sql).all(...params) as Array<{
+    group_key: string;
+    call_count: number;
+    total_input_tokens: number;
+    total_output_tokens: number;
+    error_count: number;
+    avg_duration_ms: number;
+  }>;
+
+  return rows.map((row) => ({
+    groupKey: row.group_key,
+    callCount: row.call_count,
+    totalInputTokens: row.total_input_tokens,
+    totalOutputTokens: row.total_output_tokens,
+    errorCount: row.error_count,
+    avgDurationMs: Math.round(row.avg_duration_ms),
+  }));
+}
+
 /** Build a full token summary for a session. */
 export function getTokenSummary(
   db: Database.Database,

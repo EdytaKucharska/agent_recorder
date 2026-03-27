@@ -94,6 +94,12 @@ export interface BaseEvent {
   /** Estimated output token count for this event (null if not measured) */
   outputTokens: number | null;
 
+  /** Origin of this event: 'proxy' for Claude Code hook-captured, or a source name for externally-ingested (e.g. 'n8n', 'langgraph') */
+  source: string;
+
+  /** Model identifier for cost estimation on externally-ingested events (null = use default pricing rate) */
+  model: string | null;
+
   /** When this record was created (ISO 8601) */
   createdAt: string;
 }
