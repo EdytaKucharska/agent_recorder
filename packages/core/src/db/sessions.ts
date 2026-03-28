@@ -155,7 +155,7 @@ export function listSessionsSummary(
       s.ended_at,
       s.status,
       s.created_at,
-      (SELECT MAX(e.started_at) FROM events e WHERE e.session_id = s.id) AS last_activity_at,
+      MAX(e.started_at) AS last_activity_at,
       COUNT(e.id) AS event_count,
       COALESCE(SUM(e.input_tokens), 0) AS total_input_tokens,
       COALESCE(SUM(e.output_tokens), 0) AS total_output_tokens,
@@ -164,10 +164,7 @@ export function listSessionsSummary(
     LEFT JOIN events e ON e.session_id = s.id
     ${where}
     GROUP BY s.id
-    ORDER BY COALESCE(
-      (SELECT MAX(e2.started_at) FROM events e2 WHERE e2.session_id = s.id),
-      s.started_at
-    ) DESC
+    ORDER BY COALESCE(MAX(e.started_at), s.started_at) DESC
     LIMIT ? OFFSET ?
   `;
 

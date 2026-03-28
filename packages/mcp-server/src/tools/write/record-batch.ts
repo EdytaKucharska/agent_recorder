@@ -9,10 +9,13 @@ import {
   getSessionById,
   createSession,
   insertEvent,
-  getEventById,
   allocateSequence,
 } from "@agent-recorder/core";
-import { sanitizePayload, truncateString } from "../../validation/redaction.js";
+import {
+  sanitizePayload,
+  truncateString,
+  MAX_PREVIEW_LEN,
+} from "../../validation/redaction.js";
 import { RecordBatchInputSchema } from "../../validation/schemas.js";
 import type { McpServerOptions } from "../../server.js";
 import type {
@@ -20,8 +23,6 @@ import type {
   EventStatus,
   ErrorCategory,
 } from "@agent-recorder/types";
-
-const MAX_PREVIEW_LEN = 2048;
 
 interface BatchResult {
   event_id: string;
@@ -44,10 +45,25 @@ export function register(
       const redactKeys = opts.redactKeys ?? [];
       const results: BatchResult[] = [];
 
-      // Run all inserts atomically
+      // Pre-flight: collect caller-supplied event IDs and check existence in one query
+      const callerIds = input.events
+        .map((e) => e.event_id)
+        .filter((id): id is string => id !== undefined);
+
+      const existingIds = new Set<string>();
+      if (callerIds.length > 0) {
+        const placeholders = callerIds.map(() => "?").join(", ");
+        const rows = db
+          .prepare(
+            `SELECT id FROM events WHERE id IN (${placeholders}) AND session_id = ?`
+          )
+          .all(...callerIds, input.session_id) as Array<{ id: string }>;
+        for (const row of rows) {
+          existingIds.add(row.id);
+        }
+      }
+
       const runBatch = db.transaction(() => {
-        // Auto-create session if it doesn't exist
-        // Use the earliest started_at from events as session start time
         if (!getSessionById(db, input.session_id)) {
           const firstEvent = input.events[0];
           const startedAt = firstEvent?.started_at ?? new Date().toISOString();
@@ -57,20 +73,15 @@ export function register(
         for (const event of input.events) {
           const eventId = event.event_id ?? randomUUID();
 
-          // Idempotency: skip if event_id already exists in this session
-          if (event.event_id) {
-            const existing = getEventById(db, event.event_id);
-            if (existing && existing.sessionId === input.session_id) {
-              results.push({
-                event_id: eventId,
-                stored: false,
-                deduplicated: true,
-              });
-              continue;
-            }
+          if (event.event_id && existingIds.has(event.event_id)) {
+            results.push({
+              event_id: eventId,
+              stored: false,
+              deduplicated: true,
+            });
+            continue;
           }
 
-          // Sanitize previews
           const inputPreview = event.input_preview
             ? truncateString(event.input_preview, MAX_PREVIEW_LEN)
             : null;
@@ -78,7 +89,6 @@ export function register(
             ? truncateString(event.output_preview, MAX_PREVIEW_LEN)
             : null;
 
-          // Sanitize metadata
           const sanitizedMeta = event.metadata
             ? sanitizePayload(event.metadata, redactKeys)
             : null;

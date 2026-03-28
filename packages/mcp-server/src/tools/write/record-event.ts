@@ -12,7 +12,7 @@ import {
   getEventById,
   allocateSequence,
 } from "@agent-recorder/core";
-import { truncateString } from "../../validation/redaction.js";
+import { truncateString, MAX_PREVIEW_LEN } from "../../validation/redaction.js";
 import { RecordEventInputSchema } from "../../validation/schemas.js";
 import type { McpServerOptions } from "../../server.js";
 import type {
@@ -20,8 +20,6 @@ import type {
   EventStatus,
   ErrorCategory,
 } from "@agent-recorder/types";
-
-const MAX_PREVIEW_LEN = 2048;
 
 export function register(
   server: McpServer,

@@ -24,7 +24,6 @@ export interface McpServerOptions {
   db: Database.Database;
   redactKeys?: string[];
   contextBudgetTokens?: number;
-  rateLimits?: { read: number; write: number; batch: number };
 }
 
 export function createMcpServer(opts: McpServerOptions): McpServer {
@@ -33,14 +32,12 @@ export function createMcpServer(opts: McpServerOptions): McpServer {
     version: "2.0.14",
   });
 
-  // Register all read tools
   registerListSessions(server, opts.db, opts);
   registerGetSession(server, opts.db, opts);
   registerQueryTokenUsage(server, opts.db, opts);
   registerGetTokenBudget(server, opts.db, opts);
   registerListUpstreams(server, opts.db, opts);
 
-  // Register all write tools
   registerRecordEvent(server, opts.db, opts);
   registerCompleteEvent(server, opts.db, opts);
   registerRecordBatch(server, opts.db, opts);
