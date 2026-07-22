@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_HOOK_TIMEOUT_MS, resolveHookTimeoutMs } from "./config.js";
+import {
+  DEFAULT_HOOK_TIMEOUT_MS,
+  MAX_HOOK_TIMEOUT_MS,
+  resolveHookTimeoutMs,
+} from "./config.js";
 
 describe("resolveHookTimeoutMs", () => {
   it("defaults when unset", () => {
@@ -26,5 +30,12 @@ describe("resolveHookTimeoutMs", () => {
     expect(resolveHookTimeoutMs("abc")).toBe(DEFAULT_HOOK_TIMEOUT_MS);
     expect(resolveHookTimeoutMs("Infinity")).toBe(DEFAULT_HOOK_TIMEOUT_MS);
     expect(resolveHookTimeoutMs("")).toBe(DEFAULT_HOOK_TIMEOUT_MS);
+  });
+
+  it("clamps oversized values so the bound stays real", () => {
+    expect(resolveHookTimeoutMs("100000000000")).toBe(MAX_HOOK_TIMEOUT_MS);
+    expect(resolveHookTimeoutMs(String(MAX_HOOK_TIMEOUT_MS + 1))).toBe(
+      MAX_HOOK_TIMEOUT_MS
+    );
   });
 });
