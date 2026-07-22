@@ -13,8 +13,17 @@ describe("resolveBindHost", () => {
       "::1",
       "0:0:0:0:0:0:0:1",
       "::ffff:127.0.0.1",
+      "127.0.0.2",
+      "127.255.255.254",
+      "::ffff:127.0.0.2",
     ]) {
       expect(resolveBindHost(host)).toEqual({ host });
+    }
+  });
+
+  it("warns on non-loopback addresses that merely resemble loopback", () => {
+    for (const host of ["127.0.0.1.evil.example", "1127.0.0.1", "0.0.0.0"]) {
+      expect(resolveBindHost(host).warning).toMatch(/no authentication/);
     }
   });
 
