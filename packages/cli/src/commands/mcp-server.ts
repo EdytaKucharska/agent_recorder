@@ -525,22 +525,44 @@ export interface McpServerOptions {
   host?: string;
 }
 
+const LOOPBACK_HOSTS = new Set([
+  "127.0.0.1",
+  "localhost",
+  "::1",
+  "0:0:0:0:0:0:0:1",
+  "::ffff:127.0.0.1",
+]);
+
+/** Resolve the bind host, defaulting to loopback; warn on wider binds. */
+export function resolveBindHost(rawHost: string | undefined): {
+  host: string;
+  warning?: string;
+} {
+  const host = rawHost ?? "127.0.0.1";
+  if (LOOPBACK_HOSTS.has(host)) {
+    return { host };
+  }
+  return {
+    host,
+    warning:
+      `Warning: binding to ${host} exposes this server beyond localhost. ` +
+      `It has no authentication - anyone who can reach it can read recorded sessions.`,
+  };
+}
+
 export async function mcpServerCommand(
   options: McpServerOptions = {}
 ): Promise<void> {
   const port = parseInt(options.port ?? "8789", 10);
-  const host = options.host ?? "127.0.0.1";
+  const { host, warning } = resolveBindHost(options.host);
 
   if (isNaN(port) || port < 1 || port > 65535) {
     console.error(`Invalid port: ${options.port}`);
     process.exit(1);
   }
 
-  if (host !== "127.0.0.1" && host !== "localhost" && host !== "::1") {
-    console.warn(
-      `Warning: binding to ${host} exposes this server beyond localhost. ` +
-        `It has no authentication - anyone who can reach it can read recorded sessions.`
-    );
+  if (warning) {
+    console.warn(warning);
   }
 
   const server = startMcpServer(host, port);

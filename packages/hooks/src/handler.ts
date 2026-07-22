@@ -23,6 +23,7 @@
 
 import type { HookEvent, HookOutput } from "./types.js";
 import { getActualListenPort } from "@agent-recorder/core";
+import { resolveHookTimeoutMs } from "./config.js";
 
 /** Resolve the service URL, reading the daemon's runtime port file if available */
 function getServiceUrl(): string {
@@ -89,7 +90,9 @@ async function sendToService(
   // is a per-tool-call latency floor whenever the service is unreachable but
   // the connection doesn't fail fast (e.g. a hung daemon or dropped packets).
   // The daemon answers on loopback in single-digit milliseconds.
-  const timeoutMs = Number(process.env.AGENT_RECORDER_HOOK_TIMEOUT_MS) || 500;
+  const timeoutMs = resolveHookTimeoutMs(
+    process.env.AGENT_RECORDER_HOOK_TIMEOUT_MS
+  );
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
