@@ -22,9 +22,18 @@ describe("resolveBindHost", () => {
   });
 
   it("warns on non-loopback addresses that merely resemble loopback", () => {
-    for (const host of ["127.0.0.1.evil.example", "1127.0.0.1", "0.0.0.0"]) {
+    for (const host of [
+      "127.0.0.1.evil.example",
+      "1127.0.0.1",
+      "0.0.0.0",
+      "127.999.999.999",
+    ]) {
       expect(resolveBindHost(host).warning).toMatch(/no authentication/);
     }
+  });
+
+  it("matches loopback hostnames case-insensitively", () => {
+    expect(resolveBindHost("LOCALHOST")).toEqual({ host: "LOCALHOST" });
   });
 
   it("keeps an explicit wide bind but warns about missing authentication", () => {

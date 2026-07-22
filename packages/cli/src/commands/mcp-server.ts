@@ -528,10 +528,13 @@ export interface McpServerOptions {
 const LOOPBACK_HOSTS = new Set(["localhost", "::1", "0:0:0:0:0:0:0:1"]);
 
 /** Heuristic, not exhaustive: literal 127.0.0.0/8 (optionally IPv4-mapped). */
-function isLoopback(host: string): boolean {
+function isLoopback(rawHost: string): boolean {
+  const host = rawHost.toLowerCase();
   if (LOOPBACK_HOSTS.has(host)) return true;
   const literal = host.startsWith("::ffff:") ? host.slice(7) : host;
-  return /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(literal);
+  const m = /^127\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(literal);
+  if (!m) return false;
+  return m.slice(1).every((octet) => Number(octet) <= 255);
 }
 
 /** Resolve the bind host, defaulting to loopback; warn on wider binds. */
