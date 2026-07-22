@@ -85,7 +85,12 @@ async function sendToService(
   const url = `${serviceUrl}/api/hooks`;
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 5000); // 5s timeout
+  // Keep this short: Claude Code waits for the hook process, so this timeout
+  // is a per-tool-call latency floor whenever the service is unreachable but
+  // the connection doesn't fail fast (e.g. a hung daemon or dropped packets).
+  // The daemon answers on loopback in single-digit milliseconds.
+  const timeoutMs = Number(process.env.AGENT_RECORDER_HOOK_TIMEOUT_MS) || 500;
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
     const response = await fetch(url, {

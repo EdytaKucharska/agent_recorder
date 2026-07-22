@@ -1,7 +1,9 @@
 /**
  * MCP Server command - exposes Agent Recorder observability tools via MCP protocol.
  * Uses Streamable HTTP transport (JSON-RPC 2.0 over HTTP POST).
- * Binds to 0.0.0.0 so it can be tunneled via ngrok for cloud clients.
+ * Binds to 127.0.0.1 by default; pass --host 0.0.0.0 explicitly to expose it
+ * (e.g. for ngrok tunneling). The server has no authentication, so a
+ * non-loopback bind makes recorded session data readable by the network.
  */
 
 import * as http from "node:http";
@@ -527,11 +529,18 @@ export async function mcpServerCommand(
   options: McpServerOptions = {}
 ): Promise<void> {
   const port = parseInt(options.port ?? "8789", 10);
-  const host = options.host ?? "0.0.0.0";
+  const host = options.host ?? "127.0.0.1";
 
   if (isNaN(port) || port < 1 || port > 65535) {
     console.error(`Invalid port: ${options.port}`);
     process.exit(1);
+  }
+
+  if (host !== "127.0.0.1" && host !== "localhost" && host !== "::1") {
+    console.warn(
+      `Warning: binding to ${host} exposes this server beyond localhost. ` +
+        `It has no authentication - anyone who can reach it can read recorded sessions.`
+    );
   }
 
   const server = startMcpServer(host, port);

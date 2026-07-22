@@ -326,6 +326,7 @@ All endpoints are localhost-only (`127.0.0.1`).
 | `AR_REDACT_KEYS`           | (none)                       | Comma-separated keys to redact |
 | `AR_DEBUG_PROXY`           | `0`                          | Enable proxy debug logging     |
 | `AGENT_RECORDER_TELEMETRY` | `off`                        | Telemetry: `on` or `off`       |
+| `AGENT_RECORDER_HOOK_TIMEOUT_MS` | `500`                  | Max wait for hook event delivery |
 
 </details>
 

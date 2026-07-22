@@ -386,7 +386,11 @@ program
     "Start an MCP server exposing Agent Recorder observability tools"
   )
   .option("-p, --port <port>", "Port to listen on", "8789")
-  .option("-H, --host <host>", "Host to bind to", "0.0.0.0")
+  .option(
+    "-H, --host <host>",
+    "Host to bind to (0.0.0.0 exposes the unauthenticated server beyond localhost)",
+    "127.0.0.1"
+  )
   .action(async (options) => {
     await mcpServerCommand(options);
   });
