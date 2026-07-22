@@ -525,11 +525,7 @@ export interface McpServerOptions {
   host?: string;
 }
 
-const LOOPBACK_HOSTS = new Set([
-  "localhost",
-  "::1",
-  "0:0:0:0:0:0:0:1",
-]);
+const LOOPBACK_HOSTS = new Set(["localhost", "::1", "0:0:0:0:0:0:0:1"]);
 
 /** Heuristic, not exhaustive: literal 127.0.0.0/8 (optionally IPv4-mapped). */
 function isLoopback(host: string): boolean {
