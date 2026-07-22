@@ -316,16 +316,17 @@ All endpoints are localhost-only (`127.0.0.1`).
 <details>
 <summary><strong>Environment Variables</strong></summary>
 
-| Variable                   | Default                      | Description                    |
-| -------------------------- | ---------------------------- | ------------------------------ |
-| `AR_LISTEN_PORT`           | `8787`                       | REST API / hooks port          |
-| `AR_MCP_PROXY_PORT`        | `8788`                       | MCP proxy port                 |
-| `AR_UI_PORT`               | `8789`                       | Web UI port (reserved)         |
-| `AR_DB_PATH`               | `~/.agent-recorder/*.sqlite` | SQLite database path           |
-| `AR_DOWNSTREAM_MCP_URL`    | (none)                       | Upstream MCP server (legacy)   |
-| `AR_REDACT_KEYS`           | (none)                       | Comma-separated keys to redact |
-| `AR_DEBUG_PROXY`           | `0`                          | Enable proxy debug logging     |
-| `AGENT_RECORDER_TELEMETRY` | `off`                        | Telemetry: `on` or `off`       |
+| Variable                         | Default                      | Description                      |
+| -------------------------------- | ---------------------------- | -------------------------------- |
+| `AR_LISTEN_PORT`                 | `8787`                       | REST API / hooks port            |
+| `AR_MCP_PROXY_PORT`              | `8788`                       | MCP proxy port                   |
+| `AR_UI_PORT`                     | `8789`                       | Web UI port (reserved)           |
+| `AR_DB_PATH`                     | `~/.agent-recorder/*.sqlite` | SQLite database path             |
+| `AR_DOWNSTREAM_MCP_URL`          | (none)                       | Upstream MCP server (legacy)     |
+| `AR_REDACT_KEYS`                 | (none)                       | Comma-separated keys to redact   |
+| `AR_DEBUG_PROXY`                 | `0`                          | Enable proxy debug logging       |
+| `AGENT_RECORDER_TELEMETRY`       | `off`                        | Telemetry: `on` or `off`         |
+| `AGENT_RECORDER_HOOK_TIMEOUT_MS` | `500`                        | Max wait for hook event delivery |
 
 </details>
 

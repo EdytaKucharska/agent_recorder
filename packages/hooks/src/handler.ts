@@ -23,6 +23,7 @@
 
 import type { HookEvent, HookOutput } from "./types.js";
 import { getActualListenPort } from "@agent-recorder/core";
+import { resolveHookTimeoutMs } from "./config.js";
 
 /** Resolve the service URL, reading the daemon's runtime port file if available */
 function getServiceUrl(): string {
@@ -85,7 +86,14 @@ async function sendToService(
   const url = `${serviceUrl}/api/hooks`;
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 5000); // 5s timeout
+  // Keep this short: Claude Code waits for the hook process, so this timeout
+  // is a per-tool-call latency floor whenever the service is unreachable but
+  // the connection doesn't fail fast (e.g. a hung daemon or dropped packets).
+  // The daemon answers on loopback in single-digit milliseconds.
+  const timeoutMs = resolveHookTimeoutMs(
+    process.env.AGENT_RECORDER_HOOK_TIMEOUT_MS
+  );
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
     const response = await fetch(url, {
